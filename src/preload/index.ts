@@ -12,9 +12,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureFrame: (rect?: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke('capture:frame', rect),
 
-  // Menu action listener
-  onMenuAction: (callback: (action: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, action: string) => callback(action)
+  // Recent files
+  getRecentFiles: () => ipcRenderer.invoke('file:getRecent'),
+  addRecentFile: (filePath: string) => ipcRenderer.invoke('file:addRecent', filePath),
+  clearRecentFiles: () => ipcRenderer.invoke('file:clearRecent'),
+
+  // Auto-save
+  autoSave: (data: string) => ipcRenderer.invoke('autoSave:write', data),
+  checkAutoSave: () => ipcRenderer.invoke('autoSave:check'),
+  clearAutoSave: () => ipcRenderer.invoke('autoSave:clear'),
+
+  // Open file by path (for recent files menu)
+  openFileByPath: (filePath: string) => ipcRenderer.invoke('file:openByPath', filePath),
+
+  // Menu action listener (supports both string and object payloads)
+  onMenuAction: (callback: (action: string | { action: string; filePath?: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, action: string | { action: string; filePath?: string }) => callback(action)
     ipcRenderer.on('menu:action', handler)
     return () => ipcRenderer.removeListener('menu:action', handler)
   },

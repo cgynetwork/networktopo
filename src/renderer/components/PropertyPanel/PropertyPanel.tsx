@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import type { DeviceNodeData } from '../nodes/DeviceNode'
 import type { EdgeData, PathStyle } from '../../types'
+import { getDeviceFromNode, getNodeData } from '../../types'
 import { getDefaultPortLabel, listAllPorts } from '../../utils/portParser'
 
 interface PropertyPanelProps {
@@ -132,7 +133,7 @@ export default function PropertyPanel({
   const handleAutoSourcePort = useCallback(() => {
     if (!selectedEdge || !nodes) return
     const srcNode = nodes.find(n => n.id === selectedEdge.source)
-    const device = (srcNode?.data as any)?.device
+    const device = getDeviceFromNode(srcNode!)
     if (device?.ports_info) {
       const label = getDefaultPortLabel(device.ports_info)
       setSourcePort(label)
@@ -143,7 +144,7 @@ export default function PropertyPanel({
   const handleAutoTargetPort = useCallback(() => {
     if (!selectedEdge || !nodes) return
     const tgtNode = nodes.find(n => n.id === selectedEdge.target)
-    const device = (tgtNode?.data as any)?.device
+    const device = getDeviceFromNode(tgtNode!)
     if (device?.ports_info) {
       const label = getDefaultPortLabel(device.ports_info)
       setTargetPort(label)
@@ -207,7 +208,7 @@ export default function PropertyPanel({
                 </span>
                 {customColor && (
                   <button
-                    className="text-2xs text-red-400 hover:text-red-600 transition-colors ml-auto"
+                    className="text-2xs text-danger hover:opacity-70 transition-colors ml-auto"
                     onClick={() => {
                       setCustomColor('')
                       onUpdateNodeData?.(selectedNode.id, { customColor: undefined })
@@ -224,7 +225,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">设备功能</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={customCategory}
                 onChange={(e) => setCustomCategory(e.target.value)}
                 onBlur={handleCustomCategoryChange}
@@ -238,7 +239,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">设备厂商</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={customVendor}
                 onChange={(e) => setCustomVendor(e.target.value)}
                 onBlur={handleCustomVendorChange}
@@ -252,7 +253,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">设备名称</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
                 onBlur={handleNameChange}
@@ -266,7 +267,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">设备型号</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={customDeviceModel}
                 onChange={(e) => setCustomDeviceModel(e.target.value)}
                 onBlur={handleCustomDeviceModelChange}
@@ -280,7 +281,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">设备端口</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={customPorts}
                 onChange={(e) => setCustomPorts(e.target.value)}
                 onBlur={handleCustomPortsChange}
@@ -294,7 +295,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">IP 地址</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={ipAddress}
                 onChange={(e) => setIpAddress(e.target.value)}
                 onBlur={handleIpChange}
@@ -307,7 +308,7 @@ export default function PropertyPanel({
             <div>
               <label className="block text-xs text-text-secondary mb-1">描述</label>
               <textarea
-                className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border resize-none"
+                className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={handleDescChange}
@@ -332,7 +333,7 @@ export default function PropertyPanel({
             <div>
               <label className="block text-xs text-text-secondary mb-1">连接类型</label>
               <select
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={connType}
                 onChange={(e) => {
                   const val = e.target.value as EdgeData['connectionType']
@@ -347,7 +348,7 @@ export default function PropertyPanel({
             <div>
               <label className="block text-xs text-text-secondary mb-1">连接形式</label>
               <select
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={pathStyle}
                 onChange={(e) => {
                   const val = e.target.value as PathStyle
@@ -384,10 +385,10 @@ export default function PropertyPanel({
 
             {/* 肘形偏移量 — only visible when pathStyle is step */}
             {pathStyle === 'step' && (
-              <div className="mb-3 p-2 bg-blue-50/50 rounded border border-blue-100">
+              <div className="mb-3 p-2 bg-select-bg/50 rounded border border-select-border/30">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-text-secondary">肘形高度</label>
-                  <span className="text-2xs text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded font-mono">{elbowOffset}px</span>
+                  <span className="text-2xs text-select-border bg-select-bg px-1.5 py-0.5 rounded font-mono">{elbowOffset}px</span>
                 </div>
                 <input
                   type="range"
@@ -400,14 +401,14 @@ export default function PropertyPanel({
                     setElbowOffset(val)
                     onUpdateEdgeData?.(selectedEdge.id, { elbowOffset: val })
                   }}
-                  className="w-full h-1.5 accent-[#2196F3] cursor-pointer"
+                  className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
                   <span>近(10px)</span><span>远(250px)</span>
                 </div>
                 {elbowOffset !== 50 && (
                   <button
-                    className="text-2xs text-blue-500 hover:text-blue-700 transition-colors mt-1"
+                    className="text-2xs text-select-border hover:opacity-80 transition-colors mt-1"
                     onClick={() => {
                       setElbowOffset(50)
                       onUpdateEdgeData?.(selectedEdge.id, { elbowOffset: undefined })
@@ -422,7 +423,7 @@ export default function PropertyPanel({
             <div>
               <label className="block text-xs text-text-secondary mb-1">显示状态</label>
               <select
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={animStyle}
                 onChange={(e) => {
                   const val = e.target.value as EdgeData['animationStyle']
@@ -442,7 +443,7 @@ export default function PropertyPanel({
                   className={`flex-1 h-8 text-xs rounded border transition-colors ${
                     direction === 'forward'
                       ? 'bg-select-bg border-select-border text-select-border font-semibold'
-                      : 'border-border bg-white hover:bg-hover-bg'
+                      : 'border-border bg-surface hover:bg-hover-bg'
                   }`}
                   onClick={() => {
                     setDirection('forward')
@@ -455,7 +456,7 @@ export default function PropertyPanel({
                   className={`flex-1 h-8 text-xs rounded border transition-colors ${
                     direction === 'reverse'
                       ? 'bg-select-bg border-select-border text-select-border font-semibold'
-                      : 'border-border bg-white hover:bg-hover-bg'
+                      : 'border-border bg-surface hover:bg-hover-bg'
                   }`}
                   onClick={() => {
                     setDirection('reverse')
@@ -490,7 +491,7 @@ export default function PropertyPanel({
                     setStrokeWidth(val)
                     onUpdateEdgeData?.(selectedEdge.id, { strokeWidth: val })
                   }}
-                  className="w-full h-1.5 accent-[#2196F3] cursor-pointer"
+                  className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
                   <span>1px</span><span>10px</span>
@@ -503,7 +504,7 @@ export default function PropertyPanel({
                   <label className="text-xs text-text-secondary">线缆颜色</label>
                   {strokeColor && (
                     <button
-                      className="text-2xs text-red-400 hover:text-red-600 transition-colors"
+                      className="text-2xs text-danger hover:opacity-70 transition-colors"
                       onClick={() => {
                         setStrokeColor('')
                         onUpdateEdgeData?.(selectedEdge.id, { strokeColor: '' })
@@ -534,8 +535,8 @@ export default function PropertyPanel({
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-text-secondary">动画速度</label>
                   <span className={`text-2xs px-1.5 py-0.5 rounded ${
-                    animSpeed <= 0.75 ? 'bg-red-50 text-red-500' :
-                    animSpeed >= 3 ? 'bg-blue-50 text-blue-500' :
+                    animSpeed <= 0.75 ? 'bg-danger-bg text-danger' :
+                    animSpeed >= 3 ? 'bg-select-bg text-select-border' :
                     'bg-hover-bg text-text-secondary'
                   }`}>
                     {animSpeed <= 0.75 ? '快速' : animSpeed >= 3 ? '慢速' : '正常'}
@@ -552,7 +553,7 @@ export default function PropertyPanel({
                     setAnimSpeed(val)
                     onUpdateEdgeData?.(selectedEdge.id, { animSpeed: val })
                   }}
-                  className="w-full h-1.5 accent-[#2196F3] cursor-pointer"
+                  className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
                   <span>快 ←</span><span>→ 慢</span>
@@ -577,7 +578,7 @@ export default function PropertyPanel({
                       setParticleSize(val)
                       onUpdateEdgeData?.(selectedEdge.id, { particleSize: val })
                     }}
-                    className="w-full h-1.5 accent-[#2196F3] cursor-pointer"
+                    className="w-full h-1.5 accent-select-border cursor-pointer"
                   />
                   <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
                     <span>2px</span><span>12px</span>
@@ -604,7 +605,7 @@ export default function PropertyPanel({
                     {effectColor}
                   </span>
                   <button
-                    className="text-2xs text-blue-400 hover:text-blue-600 transition-colors ml-auto"
+                    className="text-2xs text-select-border hover:opacity-80 transition-colors ml-auto"
                     onClick={() => {
                       setEffectColor('#2196F3')
                       onUpdateEdgeData?.(selectedEdge.id, { effectColor: '#2196F3' })
@@ -622,7 +623,7 @@ export default function PropertyPanel({
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs text-text-secondary">本端端口号</label>
                 <button
-                  className="text-2xs text-blue-500 hover:text-blue-700 transition-colors"
+                  className="text-2xs text-select-border hover:opacity-80 transition-colors"
                   onClick={handleAutoSourcePort}
                   title="根据设备端口信息自动填充"
                 >
@@ -631,7 +632,7 @@ export default function PropertyPanel({
               </div>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={sourcePort}
                 onChange={(e) => {
                   setSourcePort(e.target.value)
@@ -642,13 +643,13 @@ export default function PropertyPanel({
               {/* Port selector dropdown — lists all individual ports from the device */}
               {nodes && selectedEdge && (() => {
                 const srcNode = nodes.find(n => n.id === selectedEdge.source)
-                const srcDevice = (srcNode?.data as any)?.device
-                const srcPortsInfo = (srcNode?.data as any)?.customPorts || srcDevice?.ports_info || ''
+                const srcDevice = getDeviceFromNode(srcNode!)
+                const srcPortsInfo = getNodeData(srcNode!)?.customPorts || srcDevice?.ports_info || ''
                 const portList = listAllPorts(srcPortsInfo)
                 if (portList.length === 0) return null
                 return (
                   <select
-                    className="w-full h-7 px-1.5 mt-1 text-2xs rounded border border-border bg-white text-text-secondary focus:outline-none focus:border-select-border"
+                    className="w-full h-7 px-1.5 mt-1 text-2xs rounded border border-border bg-surface text-text-secondary focus:outline-none focus:border-select-border"
                     value=""
                     onChange={(e) => {
                       if (!e.target.value) return
@@ -669,7 +670,7 @@ export default function PropertyPanel({
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs text-text-secondary">对端端口号</label>
                 <button
-                  className="text-2xs text-blue-500 hover:text-blue-700 transition-colors"
+                  className="text-2xs text-select-border hover:opacity-80 transition-colors"
                   onClick={handleAutoTargetPort}
                   title="根据设备端口信息自动填充"
                 >
@@ -678,7 +679,7 @@ export default function PropertyPanel({
               </div>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={targetPort}
                 onChange={(e) => {
                   setTargetPort(e.target.value)
@@ -689,13 +690,13 @@ export default function PropertyPanel({
               {/* Port selector dropdown — lists all individual ports from the device */}
               {nodes && selectedEdge && (() => {
                 const tgtNode = nodes.find(n => n.id === selectedEdge.target)
-                const tgtDevice = (tgtNode?.data as any)?.device
-                const tgtPortsInfo = (tgtNode?.data as any)?.customPorts || tgtDevice?.ports_info || ''
+                const tgtDevice = getDeviceFromNode(tgtNode!)
+                const tgtPortsInfo = getNodeData(tgtNode!)?.customPorts || tgtDevice?.ports_info || ''
                 const portList = listAllPorts(tgtPortsInfo)
                 if (portList.length === 0) return null
                 return (
                   <select
-                    className="w-full h-7 px-1.5 mt-1 text-2xs rounded border border-border bg-white text-text-secondary focus:outline-none focus:border-select-border"
+                    className="w-full h-7 px-1.5 mt-1 text-2xs rounded border border-border bg-surface text-text-secondary focus:outline-none focus:border-select-border"
                     value=""
                     onChange={(e) => {
                       if (!e.target.value) return
@@ -715,7 +716,7 @@ export default function PropertyPanel({
               <label className="block text-xs text-text-secondary mb-1">带宽</label>
               <input
                 type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={bandwidth}
                 onChange={(e) => {
                   setBandwidth(e.target.value)

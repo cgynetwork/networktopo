@@ -1,5 +1,11 @@
 import type { CategoryRow, DeviceRow, VendorRow } from './index'
 
+export interface RecentFileEntry {
+  filePath: string
+  name: string
+  timestamp: number
+}
+
 export interface ElectronAPI {
   // File operations
   saveFile: (data: string, filePath?: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>
@@ -9,8 +15,21 @@ export interface ElectronAPI {
   exportGIF: (dataUrl: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>
   captureFrame: (rect?: { x: number; y: number; width: number; height: number }) => Promise<string | null>
 
-  // Menu action listener
-  onMenuAction: (callback: (action: string) => void) => () => void
+  // Recent files
+  getRecentFiles: () => Promise<RecentFileEntry[]>
+  addRecentFile: (filePath: string) => Promise<RecentFileEntry[]>
+  clearRecentFiles: () => Promise<void>
+
+  // Auto-save
+  autoSave: (data: string) => Promise<{ success: boolean }>
+  checkAutoSave: () => Promise<{ exists: boolean; content?: string }>
+  clearAutoSave: () => Promise<{ success: boolean }>
+
+  // Open file by path (for recent files menu)
+  openFileByPath: (filePath: string) => Promise<{ success: boolean; filePath?: string; content?: string; error?: string }>
+
+  // Menu action listener (supports both string and object payloads)
+  onMenuAction: (callback: (action: string | { action: string; filePath?: string }) => void) => () => void
 
   // Device database
   getCategories: () => Promise<CategoryRow[]>
@@ -73,4 +92,11 @@ declare module 'gif.js' {
 declare module 'gif.js/dist/gif.worker.js?url' {
   const url: string
   export default url
+}
+
+// Electron WebkitAppRegion — enables window dragging from non-titlebar areas
+declare namespace React {
+  interface CSSProperties {
+    WebkitAppRegion?: 'drag' | 'no-drag'
+  }
 }

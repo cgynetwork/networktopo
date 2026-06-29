@@ -56,9 +56,9 @@ function AnimatedEdge({
   // ── Custom appearance (V0.2.1) ──────────────────────────────
   const isFiber = connectionType === 'fiber'
   const customStrokeWidth = edgeData.strokeWidth ?? 3.5
-  const defaultColor = isFiber ? '#F59E0B' : '#1A1A1A'
+  const defaultColor = isFiber ? 'var(--color-edge-fiber)' : 'var(--color-edge-ethernet)'
   const customColor = edgeData.strokeColor || defaultColor
-  const effectColor = edgeData.effectColor || '#2196F3'
+  const effectColor = edgeData.effectColor || 'var(--color-edge-effect)'
   const animSpeed = edgeData.animSpeed ?? 2
   const baseParticleSize = edgeData.particleSize ?? 4.5
   const elbowOffset = edgeData.elbowOffset ?? 50
@@ -81,7 +81,7 @@ function AnimatedEdge({
   }
 
   // ── Line style ──────────────────────────────────────────────
-  const strokeColor = selected ? '#2196F3' : customColor
+  const strokeColor = selected ? 'var(--color-edge-selected)' : customColor
   const strokeWidth = selected ? customStrokeWidth + 0.5 : customStrokeWidth
   const strokeDasharray = isFiber ? '12 6' : 'none'
 
@@ -184,7 +184,7 @@ function AnimatedEdge({
       {edgeData.bandwidth && (
         <EdgeLabelRenderer>
           <div
-            className="absolute text-2xs bg-white/90 px-1 py-0.5 rounded border border-border text-text-secondary pointer-events-none"
+            className="absolute text-2xs bg-surface/90 px-1 py-0.5 rounded border border-border text-text-secondary pointer-events-none"
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
@@ -198,8 +198,11 @@ function AnimatedEdge({
       {edgeData.sourcePort && (
         <EdgeLabelRenderer>
           <div
-            className="absolute text-2xs bg-blue-50 text-blue-700 px-1 py-0.5 rounded border border-blue-200 font-mono pointer-events-none"
+            className="absolute text-2xs px-1 py-0.5 rounded border font-mono pointer-events-none"
             style={{
+              backgroundColor: 'var(--color-port-source-bg)',
+              color: 'var(--color-port-source-text)',
+              borderColor: 'var(--color-port-source-border)',
               transform: `translate(-50%, -50%) translate(${srcPortX}px, ${srcPortY}px)`,
             }}
           >
@@ -212,8 +215,11 @@ function AnimatedEdge({
       {edgeData.targetPort && (
         <EdgeLabelRenderer>
           <div
-            className="absolute text-2xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded border border-orange-200 font-mono pointer-events-none"
+            className="absolute text-2xs px-1 py-0.5 rounded border font-mono pointer-events-none"
             style={{
+              backgroundColor: 'var(--color-port-target-bg)',
+              color: 'var(--color-port-target-text)',
+              borderColor: 'var(--color-port-target-border)',
               transform: `translate(-50%, -50%) translate(${tgtPortX}px, ${tgtPortY}px)`,
             }}
           >

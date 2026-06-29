@@ -97,7 +97,7 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-lg shadow-xl w-[420px] max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface rounded-lg shadow-xl w-[420px] max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-text-primary">自定义设备</h2>
@@ -113,9 +113,9 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
         <div className="p-5 space-y-4">
           {/* Category */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">设备分类 <span className="text-red-400">*</span></label>
+            <label className="block text-xs text-text-secondary mb-1">设备分类 <span className="text-danger">*</span></label>
             <select
-              className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+              className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
               value={categoryId || ''}
               onChange={(e) => setCategoryId(Number(e.target.value))}
             >
@@ -128,11 +128,11 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
 
           {/* Vendor */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">厂商 <span className="text-red-400">*</span></label>
+            <label className="block text-xs text-text-secondary mb-1">厂商 <span className="text-danger">*</span></label>
             {!showNewVendor ? (
               <div className="flex gap-2">
                 <select
-                  className="flex-1 h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                  className="flex-1 h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                   value={vendorId || ''}
                   onChange={(e) => setVendorId(Number(e.target.value))}
                 >
@@ -153,7 +153,7 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
               <div className="flex gap-2">
                 <input
                   type="text"
-                  className="flex-1 h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+                  className="flex-1 h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                   value={newVendorName}
                   onChange={(e) => setNewVendorName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleAddVendor() }}
@@ -180,10 +180,10 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
 
           {/* Model */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">型号 <span className="text-red-400">*</span></label>
+            <label className="block text-xs text-text-secondary mb-1">型号 <span className="text-danger">*</span></label>
             <input
               type="text"
-              className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+              className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder="如 S5130S-28S-HPWR-EI"
@@ -194,7 +194,7 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
           <div>
             <label className="block text-xs text-text-secondary mb-1">描述</label>
             <textarea
-              className="w-full h-16 px-2 py-1 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border resize-none"
+              className="w-full h-16 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="设备描述..."
@@ -206,7 +206,7 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
             <label className="block text-xs text-text-secondary mb-1">端口信息</label>
             <input
               type="text"
-              className="w-full h-8 px-2 text-xs rounded border border-border bg-white text-text-primary focus:outline-none focus:border-select-border"
+              className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
               value={portsInfo}
               onChange={(e) => setPortsInfo(e.target.value)}
               placeholder="如 24×GE + 4×10G SFP+"
@@ -215,7 +215,7 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
 
           {/* Error */}
           {error && (
-            <div className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded border border-red-200">
+            <div className="text-xs text-danger bg-danger-bg px-3 py-2 rounded border border-danger/30">
               {error}
             </div>
           )}

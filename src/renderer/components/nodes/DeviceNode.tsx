@@ -3,16 +3,16 @@ import { Handle, Position, NodeResizer, useReactFlow, type NodeProps } from '@xy
 import type { DeviceRow } from '../../types'
 import { parsePortsInfo, type ParsedPortGroup } from '../../utils/portParser'
 
-// Category color mapping
+// Category color mapping — uses CSS variables for dynamic theme switching
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: string; light: string }> = {
-  '防火墙': { bg: '#FEF2F2', border: '#FECACA', accent: '#EF4444', light: '#FEE2E2' },
-  '交换机': { bg: '#EFF6FF', border: '#BFDBFE', accent: '#2196F3', light: '#DBEAFE' },
-  '无线控制器': { bg: '#F5F3FF', border: '#DDD6FE', accent: '#8B5CF6', light: '#EDE9FE' },
-  '无线接入点': { bg: '#ECFDF5', border: '#A7F3D0', accent: '#10B981', light: '#D1FAE5' },
-  '服务器': { bg: '#FFFBEB', border: '#FDE68A', accent: '#F59E0B', light: '#FEF3C7' },
+  '防火墙':     { bg: 'var(--color-cat-firewall-bg)', border: 'var(--color-cat-firewall-border)', accent: 'var(--color-cat-firewall-accent)', light: 'var(--color-cat-firewall-light)' },
+  '交换机':     { bg: 'var(--color-cat-switch-bg)',   border: 'var(--color-cat-switch-border)',   accent: 'var(--color-cat-switch-accent)',   light: 'var(--color-cat-switch-light)' },
+  '无线控制器': { bg: 'var(--color-cat-ac-bg)',       border: 'var(--color-cat-ac-border)',       accent: 'var(--color-cat-ac-accent)',       light: 'var(--color-cat-ac-light)' },
+  '无线接入点': { bg: 'var(--color-cat-ap-bg)',       border: 'var(--color-cat-ap-border)',       accent: 'var(--color-cat-ap-accent)',       light: 'var(--color-cat-ap-light)' },
+  '服务器':     { bg: 'var(--color-cat-server-bg)',   border: 'var(--color-cat-server-border)',   accent: 'var(--color-cat-server-accent)',   light: 'var(--color-cat-server-light)' },
 }
 
-const DEFAULT_COLOR = { bg: '#FAFAFA', border: '#E5E5E5', accent: '#6B7280', light: '#F3F4F6' }
+const DEFAULT_COLOR = { bg: 'var(--color-cat-default-bg)', border: 'var(--color-cat-default-border)', accent: 'var(--color-cat-default-accent)', light: 'var(--color-cat-default-light)' }
 
 export interface DeviceNodeData {
   device: DeviceRow
@@ -66,8 +66,8 @@ function SmallPorts({ count, startX, row1Y, row2Y, availableW, maxPerRow }: {
   const row2 = Math.max(0, count - effectiveMaxPerRow)
   return (
     <>
-      <PortRow count={row1} x={startX} y={row1Y} availableW={availableW} height={5} maxPerRow={effectiveMaxPerRow} fill="#1E293B" stroke="#64748B" />
-      {row2 > 0 && <PortRow count={row2} x={startX} y={row2Y} availableW={availableW} height={5} maxPerRow={effectiveMaxPerRow} fill="#1E293B" stroke="#64748B" />}
+      <PortRow count={row1} x={startX} y={row1Y} availableW={availableW} height={5} maxPerRow={effectiveMaxPerRow} fill="var(--color-device-port-sm-fill)" stroke="var(--color-device-port-sm-stroke)" />
+      {row2 > 0 && <PortRow count={row2} x={startX} y={row2Y} availableW={availableW} height={5} maxPerRow={effectiveMaxPerRow} fill="var(--color-device-port-sm-fill)" stroke="var(--color-device-port-sm-stroke)" />}
     </>
   )
 }
@@ -80,8 +80,8 @@ function LargePorts({ count, startX, row1Y, row2Y, availableW, maxPerRow = 8 }: 
   const row2 = Math.max(0, count - maxPerRow)
   return (
     <>
-      <PortRow count={row1} x={startX} y={row1Y} availableW={availableW} height={6} maxPerRow={maxPerRow} fill="#334155" stroke="#94A3B8" rx={1.5} />
-      {row2 > 0 && <PortRow count={row2} x={startX} y={row2Y} availableW={availableW} height={6} maxPerRow={maxPerRow} fill="#334155" stroke="#94A3B8" rx={1.5} />}
+      <PortRow count={row1} x={startX} y={row1Y} availableW={availableW} height={6} maxPerRow={maxPerRow} fill="var(--color-device-port-lg-fill)" stroke="var(--color-device-port-lg-stroke)" rx={1.5} />
+      {row2 > 0 && <PortRow count={row2} x={startX} y={row2Y} availableW={availableW} height={6} maxPerRow={maxPerRow} fill="var(--color-device-port-lg-fill)" stroke="var(--color-device-port-lg-stroke)" rx={1.5} />}
     </>
   )
 }
@@ -124,10 +124,10 @@ function SwitchSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: str
 
   return (
     <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="1.5" />
+      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
       {/* LED indicators */}
       {Array.from({ length: Math.min(12, Math.floor(totalW / 12)) }).map((_, i) => (
-        <rect key={`led-${i}`} x={margin + i * 12.5} y="7" width="3" height="2" rx="0.5" fill={i % 3 === 0 ? accent : '#22C55E'} />
+        <rect key={`led-${i}`} x={margin + i * 12.5} y="7" width="3" height="2" rx="0.5" fill={i % 3 === 0 ? accent : 'var(--color-device-led-green)'} />
       ))}
       {small > 0 && (
         <SmallPorts count={small} startX={startX} row1Y={needsTwoRows ? 11 : 15} row2Y={20}
@@ -176,12 +176,12 @@ function FirewallSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: s
 
   return (
     <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="1.5" />
+      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
       <rect x="2" y="2" width="6" height="50" rx="3" fill={accent} />
       <path d={`M${Math.round(svgW * 0.12)} 10 L${Math.round(svgW * 0.17)} 10 L${Math.round(svgW * 0.17)} 18 C${Math.round(svgW * 0.17)} 26 ${Math.round(svgW * 0.14)} 30 ${Math.round(svgW * 0.14)} 30 C${Math.round(svgW * 0.14)} 30 ${Math.round(svgW * 0.11)} 26 ${Math.round(svgW * 0.12)} 18 Z`} fill={accent} opacity="0.8" />
-      <rect x={Math.round(svgW * 0.23)} y="8" width="28" height="12" rx="1" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5" />
+      <rect x={Math.round(svgW * 0.23)} y="8" width="28" height="12" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
       {[Math.round(svgW * 0.26), Math.round(svgW * 0.30), Math.round(svgW * 0.34), Math.round(svgW * 0.38)].map((cx) => (
-        <circle key={`st-${cx}`} cx={cx} cy="13" r="2" fill={cx === Math.round(svgW * 0.30) || cx === Math.round(svgW * 0.34) ? '#22C55E' : accent} />
+        <circle key={`st-${cx}`} cx={cx} cy="13" r="2" fill={cx === Math.round(svgW * 0.30) || cx === Math.round(svgW * 0.34) ? 'var(--color-device-led-green)' : accent} />
       ))}
       {small > 0 && (
         <SmallPorts count={small} startX={zoneStartX} row1Y={needsTwoRows ? 22 : 24} row2Y={34}
@@ -233,13 +233,13 @@ function AcSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string;
 
   return (
     <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="1.5" />
+      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
       <path d={`M${cx1} 12 Q${cx2} 4 ${Math.round(svgW * 0.20)} 12`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
       <path d={`M${Math.round(svgW * 0.09)} 17 Q${Math.round(svgW * 0.14)} 7 ${Math.round(svgW * 0.22)} 17`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" opacity="0.7" />
       <path d={`M${Math.round(svgW * 0.07)} 22 Q${Math.round(svgW * 0.12)} 10 ${Math.round(svgW * 0.24)} 22`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
       <circle cx={Math.round(svgW * 0.14)} cy="27" r="2.5" fill={accent} opacity="0.6" />
       {[0.23, 0.27, 0.31, 0.35].map(pct => Math.round(svgW * pct)).map((x) => (
-        <rect key={`led-${x}`} x={x} y="8" width="3" height="2" rx="0.5" fill={x === Math.round(svgW * 0.31) ? accent : '#22C55E'} />
+        <rect key={`led-${x}`} x={x} y="8" width="3" height="2" rx="0.5" fill={x === Math.round(svgW * 0.31) ? accent : 'var(--color-device-led-green)'} />
       ))}
       {small > 0 && (
         <SmallPorts count={small} startX={zoneStartX} row1Y={needsTwoRows ? 14 : 18} row2Y={26}
@@ -279,8 +279,8 @@ function ApSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string;
         width={portW}
         height={4}
         rx={1}
-        fill="#1E293B"
-        stroke="#64748B"
+        fill="var(--color-device-port-sm-fill)"
+        stroke="var(--color-device-port-sm-stroke)"
         strokeWidth={0.5}
       />
     ))
@@ -290,8 +290,8 @@ function ApSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string;
 
   return (
     <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x={apBodyX} y="8" width={apBodyW} height="38" rx="6" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="1.5" />
-      <rect x={antennaCX - 10} y="2" width="20" height="8" rx="2" fill="#CBD5E1" />
+      <rect x={apBodyX} y="8" width={apBodyW} height="38" rx="6" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
+      <rect x={antennaCX - 10} y="2" width="20" height="8" rx="2" fill="var(--color-device-body-stroke)" />
       <path d={`M${apBodyX + 24} 26 Q${apBodyX + 18} 20 ${apBodyX + 24} 14`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
       <path d={`M${apBodyX + 18} 28 Q${apBodyX + 10} 20 ${apBodyX + 18} 12`} fill="none" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
       <path d={`M${apBodyX + apBodyW - 24} 26 Q${apBodyX + apBodyW - 18} 20 ${apBodyX + apBodyW - 24} 14`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
@@ -315,16 +315,16 @@ function ServerSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: str
 
   return (
     <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="1.5" />
+      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
       {/* Drive bays */}
       {[8, Math.round(svgW * 0.19)].map((x) =>
         [8, 20, 32].map((y) => (
-          <rect key={`d-${x}-${y}`} x={x} y={y} width="18" height="10" rx="1" fill="#1E293B" stroke="#64748B" strokeWidth="0.5" />
+          <rect key={`d-${x}-${y}`} x={x} y={y} width="18" height="10" rx="1" fill="var(--color-device-port-sm-fill)" stroke="var(--color-device-port-sm-stroke)" strokeWidth="0.5" />
         ))
       )}
-      <circle cx={Math.round(svgW * 0.36)} cy="13" r="2" fill="#22C55E" />
+      <circle cx={Math.round(svgW * 0.36)} cy="13" r="2" fill="var(--color-device-led-green)" />
       <circle cx={Math.round(svgW * 0.36)} cy="25" r="2" fill={accent} />
-      <circle cx={Math.round(svgW * 0.36)} cy="37" r="2" fill="#22C55E" />
+      <circle cx={Math.round(svgW * 0.36)} cy="37" r="2" fill="var(--color-device-led-green)" />
       {Array.from({ length: nicCount }).map((_, i) => (
         <rect
           key={`nic-${i}`}
@@ -333,17 +333,17 @@ function ServerSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: str
           width={nicWidth}
           height={8}
           rx="1.5"
-          fill="#334155"
-          stroke="#94A3B8"
+          fill="var(--color-device-port-lg-fill)"
+          stroke="var(--color-device-port-lg-stroke)"
           strokeWidth={0.5}
         />
       ))}
-      <rect x={Math.round(svgW * 0.44)} y="26" width="16" height="14" rx="1" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5" />
-      <rect x={Math.round(svgW * 0.56)} y="26" width="16" height="14" rx="1" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5" />
-      <text x={Math.round(svgW * 0.50)} y="35" fontSize="5" fill="#94A3B8" textAnchor="middle" fontFamily="sans-serif">PSU1</text>
-      <text x={Math.round(svgW * 0.62)} y="35" fontSize="5" fill="#94A3B8" textAnchor="middle" fontFamily="sans-serif">PSU2</text>
+      <rect x={Math.round(svgW * 0.44)} y="26" width="16" height="14" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
+      <rect x={Math.round(svgW * 0.56)} y="26" width="16" height="14" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
+      <text x={Math.round(svgW * 0.50)} y="35" fontSize="5" fill="var(--color-device-port-lg-stroke)" textAnchor="middle" fontFamily="sans-serif">PSU1</text>
+      <text x={Math.round(svgW * 0.62)} y="35" fontSize="5" fill="var(--color-device-port-lg-stroke)" textAnchor="middle" fontFamily="sans-serif">PSU2</text>
       {Array.from({ length: 8 }).map((_, i) => (
-        <line key={`fan-${i}`} x1={Math.round(svgW * 0.73) + i * 5} y1="30" x2={Math.round(svgW * 0.73) + i * 5} y2="38" stroke="#CBD5E1" strokeWidth="1" />
+        <line key={`fan-${i}`} x1={Math.round(svgW * 0.73) + i * 5} y1="30" x2={Math.round(svgW * 0.73) + i * 5} y2="38" stroke="var(--color-device-body-stroke)" strokeWidth="1" />
       ))}
     </svg>
   )
@@ -419,7 +419,7 @@ function InlineEdit({ label, value, placeholder, nodeId, dataKey, bold, classNam
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={commit}
         onKeyDown={handleKeyDown}
-        className={`text-2xs bg-white border border-select-border rounded px-1.5 py-0.5 outline-none min-w-0 ${bold ? 'font-semibold' : ''} ${className || ''}`}
+        className={`text-2xs bg-surface border border-select-border rounded px-1.5 py-0.5 outline-none min-w-0 ${bold ? 'font-semibold' : ''} ${className || ''}`}
         placeholder={placeholder}
       />
     )
@@ -427,7 +427,7 @@ function InlineEdit({ label, value, placeholder, nodeId, dataKey, bold, classNam
 
   return (
     <div
-      className={`text-2xs truncate cursor-text hover:bg-gray-50 rounded px-1 py-0.5 -mx-1 min-w-0 ${bold ? 'font-semibold text-text-primary' : 'text-text-secondary'} ${className || ''}`}
+      className={`text-2xs truncate cursor-text hover:bg-hover-bg rounded px-1 py-0.5 -mx-1 min-w-0 ${bold ? 'font-semibold text-text-primary' : 'text-text-secondary'} ${className || ''}`}
       onDoubleClick={() => {
         setEditValue(value)
         setEditing(true)
@@ -467,8 +467,8 @@ function ConnectionHandles({ totalPorts, visible }: ConnectionHandlesProps) {
   const handleStyle: React.CSSProperties = {
     width: 10,
     height: 10,
-    background: visible ? '#2196F3' : 'transparent',
-    border: visible ? '2px solid white' : '2px solid transparent',
+    background: visible ? 'var(--color-handle-source)' : 'transparent',
+    border: visible ? '2px solid var(--color-handle-border)' : '2px solid transparent',
     borderRadius: '50%',
     cursor: 'crosshair',
     zIndex: 10,
@@ -478,7 +478,7 @@ function ConnectionHandles({ totalPorts, visible }: ConnectionHandlesProps) {
 
   const targetHandleStyle: React.CSSProperties = {
     ...handleStyle,
-    background: visible ? '#22C55E' : 'transparent',
+    background: visible ? 'var(--color-handle-target)' : 'transparent',
   }
 
   const counts = getHandlesPerSide(totalPorts)
@@ -579,12 +579,12 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         height: nodeHeight,
         minWidth: 160,
         minHeight: 120,
-        backgroundColor: '#FFFFFF',
-        borderColor: showBorder ? (selected ? '#2196F3' : colors.border) : 'transparent',
+        backgroundColor: 'var(--color-surface)',
+        borderColor: showBorder ? (selected ? 'var(--color-edge-selected)' : colors.border) : 'transparent',
         boxShadow: selected
-          ? '0 4px 16px rgba(33,150,243,0.25)'
+          ? 'var(--color-node-shadow-selected)'
           : isHovered
-            ? '0 2px 8px rgba(0,0,0,0.1)'
+            ? 'var(--color-node-shadow-hover)'
             : 'none',
       }}
       onMouseEnter={() => setIsHovered(true)}
@@ -597,14 +597,14 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         minHeight={120}
         maxWidth={600}
         keepAspectRatio={false}
-        color="#2196F3"
+        color="var(--color-resizer)"
         lineStyle={{ opacity: 0.8 }}
         handleStyle={{
           width: 8,
           height: 8,
           borderRadius: 2,
-          backgroundColor: '#2196F3',
-          border: '2px solid white',
+          backgroundColor: 'var(--color-resizer)',
+          border: '2px solid var(--color-handle-border)',
           zIndex: 5,
         }}
       />
@@ -637,7 +637,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
       </div>
 
       {/* SVG illustration */}
-      <div className="px-2 py-2 flex justify-center bg-white">
+      <div className="px-2 py-2 flex justify-center bg-surface">
         <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} svgW={svgW} />
       </div>
 

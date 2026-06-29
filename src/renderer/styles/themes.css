@@ -1,0 +1,215 @@
+/* ══════════════════════════════════════════════════════════════
+   Theme CSS Variables — Default (简洁) & Gilded (鎏金)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Default theme (current clean white style) ────────────── */
+:root {
+  /* Layout surfaces */
+  --color-canvas: #FFFFFF;
+  --color-sidebar: #FAFAFA;
+  --color-panel: #FAFAFA;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E5E5;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #6B7280;
+  --color-select-bg: #E3F2FD;
+  --color-select-border: #2196F3;
+  --color-flow-blue: #2196F3;
+  --color-hover-bg: #F3F4F6;
+  --color-danger: #EF4444;
+  --color-danger-bg: #FEF2F2;
+  --color-amber-bg: #FFFBEB;
+  --color-toolbar: #FFFFFF;
+
+  /* SVG device illustration */
+  --color-device-body: #F8FAFC;
+  --color-device-body-stroke: #CBD5E1;
+  --color-device-secondary: #F1F5F9;
+  --color-device-port-sm-fill: #1E293B;
+  --color-device-port-sm-stroke: #64748B;
+  --color-device-port-lg-fill: #334155;
+  --color-device-port-lg-stroke: #94A3B8;
+  --color-device-led-green: #22C55E;
+
+  /* Edge port labels */
+  --color-port-source-bg: #EFF6FF;
+  --color-port-source-text: #1D4ED8;
+  --color-port-source-border: #BFDBFE;
+  --color-port-target-bg: #FFF7ED;
+  --color-port-target-text: #C2410C;
+  --color-port-target-border: #FED7AA;
+
+  /* Canvas & controls */
+  --color-canvas-grid: #E5E5E5;
+  --color-minimap-mask: rgba(0, 0, 0, 0.1);
+  --color-minimap-node: #E3F2FD;
+  --color-connection-preview: #2196F3;
+  --color-handle-source: #2196F3;
+  --color-handle-target: #22C55E;
+  --color-resizer: #2196F3;
+  --color-node-shadow-selected: 0 4px 16px rgba(33,150,243,0.25);
+  --color-node-shadow-hover: 0 2px 8px rgba(0,0,0,0.1);
+  --color-handle-border: white;
+
+  /* Edge / cable defaults */
+  --color-edge-ethernet: #1A1A1A;
+  --color-edge-fiber: #F59E0B;
+  --color-edge-effect: #2196F3;
+  --color-edge-selected: #2196F3;
+
+  /* Device category colors — 防火墙 (red) */
+  --color-cat-firewall-bg: #FEF2F2;
+  --color-cat-firewall-border: #FECACA;
+  --color-cat-firewall-accent: #EF4444;
+  --color-cat-firewall-light: #FEE2E2;
+
+  /* Device category colors — 交换机 (blue) */
+  --color-cat-switch-bg: #EFF6FF;
+  --color-cat-switch-border: #BFDBFE;
+  --color-cat-switch-accent: #2196F3;
+  --color-cat-switch-light: #DBEAFE;
+
+  /* Device category colors — 无线控制器 (purple) */
+  --color-cat-ac-bg: #F5F3FF;
+  --color-cat-ac-border: #DDD6FE;
+  --color-cat-ac-accent: #8B5CF6;
+  --color-cat-ac-light: #EDE9FE;
+
+  /* Device category colors — 无线接入点 (green) */
+  --color-cat-ap-bg: #ECFDF5;
+  --color-cat-ap-border: #A7F3D0;
+  --color-cat-ap-accent: #10B981;
+  --color-cat-ap-light: #D1FAE5;
+
+  /* Device category colors — 服务器 (amber) */
+  --color-cat-server-bg: #FFFBEB;
+  --color-cat-server-border: #FDE68A;
+  --color-cat-server-accent: #F59E0B;
+  --color-cat-server-light: #FEF3C7;
+
+  /* Device category colors — default (gray) */
+  --color-cat-default-bg: #FAFAFA;
+  --color-cat-default-border: #E5E5E5;
+  --color-cat-default-accent: #6B7280;
+  --color-cat-default-light: #F3F4F6;
+}
+
+/* ── Gilded 鎏金 theme (luxurious dark + gold) ────────────── */
+[data-theme="gilded"] {
+  /* Layout surfaces */
+  --color-canvas: #0B1121;
+  --color-sidebar: #111827;
+  --color-panel: #111827;
+  --color-surface: #1A2240;
+  --color-border: #3A3558;
+  --color-text-primary: #F0E4D0;
+  --color-text-secondary: #B8A890;
+  --color-select-bg: #2D2A50;
+  --color-select-border: #D4A574;
+  --color-flow-blue: #D4A574;
+  --color-hover-bg: #222B4A;
+  --color-danger: #F87171;
+  --color-danger-bg: #3D1518;
+  --color-amber-bg: #2E2515;
+  --color-toolbar: #151D33;
+
+  /* SVG device illustration — dark metallic */
+  --color-device-body: #1C2646;
+  --color-device-body-stroke: #3A3560;
+  --color-device-secondary: #222D50;
+  --color-device-port-sm-fill: #0D1528;
+  --color-device-port-sm-stroke: #4A4060;
+  --color-device-port-lg-fill: #121B36;
+  --color-device-port-lg-stroke: #5A4A65;
+  --color-device-led-green: #34D399;
+
+  /* Edge port labels — gold-toned */
+  --color-port-source-bg: #1D2D52;
+  --color-port-source-text: #7EB8DA;
+  --color-port-source-border: #2D4060;
+  --color-port-target-bg: #2D2018;
+  --color-port-target-text: #D4A574;
+  --color-port-target-border: #3D2D20;
+
+  /* Canvas & controls — dark + gold */
+  --color-canvas-grid: #1E2D40;
+  --color-minimap-mask: rgba(0, 0, 0, 0.4);
+  --color-minimap-node: #2D3A58;
+  --color-connection-preview: #D4A574;
+  --color-handle-source: #D4A574;
+  --color-handle-target: #4ADE80;
+  --color-resizer: #D4A574;
+  --color-node-shadow-selected: 0 4px 16px rgba(212,165,116,0.35);
+  --color-node-shadow-hover: 0 2px 8px rgba(0,0,0,0.35);
+  --color-handle-border: white;
+
+  /* Edge / cable defaults */
+  --color-edge-ethernet: #8B9DC3;
+  --color-edge-fiber: #D4A040;
+  --color-edge-effect: #D4A574;
+  --color-edge-selected: #D4A574;
+
+  /* Device category colors — 防火墙 (deep crimson) */
+  --color-cat-firewall-bg: #2D1518;
+  --color-cat-firewall-border: #5A2025;
+  --color-cat-firewall-accent: #E05555;
+  --color-cat-firewall-light: #3D2025;
+
+  /* Device category colors — 交换机 (deep navy) */
+  --color-cat-switch-bg: #152030;
+  --color-cat-switch-border: #203550;
+  --color-cat-switch-accent: #5A9FD4;
+  --color-cat-switch-light: #1E2D45;
+
+  /* Device category colors — 无线控制器 (deep violet) */
+  --color-cat-ac-bg: #1D1830;
+  --color-cat-ac-border: #352D55;
+  --color-cat-ac-accent: #9B7CF6;
+  --color-cat-ac-light: #282040;
+
+  /* Device category colors — 无线接入点 (deep teal) */
+  --color-cat-ap-bg: #152820;
+  --color-cat-ap-border: #254035;
+  --color-cat-ap-accent: #34D399;
+  --color-cat-ap-light: #1E3028;
+
+  /* Device category colors — 服务器 (deep bronze) */
+  --color-cat-server-bg: #252015;
+  --color-cat-server-border: #403520;
+  --color-cat-server-accent: #D4A040;
+  --color-cat-server-light: #2D2518;
+
+  /* Device category colors — default (dark slate) */
+  --color-cat-default-bg: #1A2240;
+  --color-cat-default-border: #3A3558;
+  --color-cat-default-accent: #8B7D6B;
+  --color-cat-default-light: #1E2846;
+}
+
+/* ── Gilded theme decorative enhancements ─────────────────── */
+[data-theme="gilded"] {
+  /* Subtle gold gradient on toolbar bottom border */
+  .toolbar-border-gilded {
+    border-bottom: 1px solid;
+    border-image: linear-gradient(90deg, #D4A574, #8B6914, #D4A574) 1;
+  }
+
+  /* Gold accent on selected items */
+  .react-flow__node.selected {
+    filter: drop-shadow(0 0 8px rgba(212, 165, 116, 0.35));
+  }
+
+  /* Scrollbar gold tint */
+  ::-webkit-scrollbar-thumb {
+    background: #4A3A2A;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #6B5338;
+  }
+
+  /* Range slider gold accent */
+  input[type="range"] {
+    accent-color: #D4A574;
+  }
+}

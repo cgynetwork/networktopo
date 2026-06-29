@@ -9,23 +9,30 @@ import {
   type Node,
   type Edge,
   type Connection,
+  type NodeChange,
   addEdge,
   BackgroundVariant,
   ReactFlowProvider,
   type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { toPng } from 'html-to-image'
-import { jsPDF } from 'jspdf'
-import GIF from 'gif.js'
-import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url'
 import Sidebar from './components/Sidebar/Sidebar'
 import PropertyPanel from './components/PropertyPanel/PropertyPanel'
 import Toolbar from './components/Toolbar/Toolbar'
+import ToastContainer from './components/Toast/ToastContainer'
+import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
+import CanvasContextMenu from './components/CanvasContextMenu'
+import type { ContextMenuState } from './components/CanvasContextMenu'
 import DeviceNode from './components/nodes/DeviceNode'
 import AnimatedEdge from './components/edges/AnimatedEdge'
 import type { DeviceRow, EdgeData, PathStyle } from './types'
+import { getDeviceFromNode } from './types'
 import { getDefaultPortLabel, listAllPorts } from './utils/portParser'
+import { useHistory } from './hooks/useHistory'
+import { useGifExport } from './hooks/useGifExport'
+import { useFileOperations } from './hooks/useFileOperations'
+import { useTheme } from './context/ThemeContext'
+import { useToast } from './context/ToastContext'
 
 // Custom node and edge types for React Flow
 const nodeTypes = {
@@ -59,17 +66,27 @@ export default function App() {
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
+  const { theme, toggleTheme } = useTheme()
+  const toast = useToast()
 
-  // ── Save confirmation dialog ────────────────────────────
+  // ── Confirmation dialogs ──────────────────────────────────
   const [showNewConfirm, setShowNewConfirm] = useState(false)
+  const [showOpenConfirm, setShowOpenConfirm] = useState(false)
+  const [showAutoSaveRecover, setShowAutoSaveRecover] = useState<string | null>(null) // stores the content to recover
 
   // ── Context menu state (unified: edge + node) ────────────
-  const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-    type: 'edge' | 'node'
-    id: string
-  } | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+
+  // ── Undo/Redo history ────────────────────────────────────
+  const history = useHistory()
+  const isDraggingRef = useRef(false)
+  // Debounce slider edits: only snapshot once per continuous change
+  const sliderSnapshotRef = useRef<Map<string, string>>(new Map())
+  const sliderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── File tracking (auto-save + recent files) ─────────────
+  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
 
   // ── Connection ──────────────────────────────────────────
   const isValidConnection = useCallback(
@@ -88,8 +105,8 @@ export default function App() {
       // Auto-populate port labels from device ports_info
       const srcNode = nodesRef.current.find(n => n.id === connection.source)
       const tgtNode = nodesRef.current.find(n => n.id === connection.target)
-      const srcDevice = (srcNode?.data as any)?.device
-      const tgtDevice = (tgtNode?.data as any)?.device
+      const srcDevice = getDeviceFromNode(srcNode!)
+      const tgtDevice = getDeviceFromNode(tgtNode!)
       const srcPortsInfo = srcDevice?.ports_info
       const sourcePort = srcPortsInfo
         ? (listAllPorts(srcPortsInfo)[0] || getDefaultPortLabel(srcPortsInfo))
@@ -99,6 +116,7 @@ export default function App() {
         ? (listAllPorts(tgtPortsInfo)[0] || getDefaultPortLabel(tgtPortsInfo))
         : ''
 
+      history.pushSnapshot(nodesRef.current, edges)
       setEdges((eds) =>
         addEdge(
           {
@@ -109,8 +127,9 @@ export default function App() {
           eds
         )
       )
+      setIsDirty(true)
     },
-    [setEdges],
+    [setEdges, edges, history],
   )
 
   // ── Selection ───────────────────────────────────────────
@@ -169,25 +188,30 @@ export default function App() {
 
   const handleDeleteEdge = useCallback(() => {
     if (!contextMenu || contextMenu.type !== 'edge') return
+    history.pushSnapshot(nodesRef.current, edges)
     setEdges((eds) => eds.filter((e) => e.id !== contextMenu.id))
     setSelectedEdge(null)
     setContextMenu(null)
-  }, [contextMenu, setEdges])
+    setIsDirty(true)
+  }, [contextMenu, setEdges, edges, history])
 
   const handleDeleteNode = useCallback(() => {
     if (!contextMenu || contextMenu.type !== 'node') return
     const nodeId = contextMenu.id
+    history.pushSnapshot(nodesRef.current, edges)
     setNodes((nds) => nds.filter((n) => n.id !== nodeId))
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId))
     setSelectedNode(null)
     setContextMenu(null)
-  }, [contextMenu, setNodes, setEdges])
+    setIsDirty(true)
+  }, [contextMenu, setNodes, setEdges, edges, history])
 
   // ── Edge path style change ───────────────────────────────
   const handleEdgePathStyle = useCallback(
     (style: PathStyle) => {
       if (!contextMenu || contextMenu.type !== 'edge') return
       const edgeId = contextMenu.id
+      history.pushSnapshot(nodesRef.current, edges)
       setEdges((eds) =>
         eds.map((edge) => {
           if (edge.id === edgeId) {
@@ -204,8 +228,9 @@ export default function App() {
         return prev
       })
       setContextMenu(null)
+      setIsDirty(true)
     },
-    [contextMenu, setEdges],
+    [contextMenu, setEdges, edges, history],
   )
 
   // ── Drag & Drop from Sidebar ────────────────────────────
@@ -243,14 +268,17 @@ export default function App() {
         },
       }
 
+      history.pushSnapshot(nodesRef.current, edges)
       setNodes((nds) => [...nds, newNode])
+      setIsDirty(true)
     },
-    [rfInstance, setNodes],
+    [rfInstance, setNodes, edges, history],
   )
 
   // ── Node data update ────────────────────────────────────
   const updateNodeData = useCallback(
     (nodeId: string, newData: Record<string, unknown>) => {
+      history.pushSnapshot(nodesRef.current, edges)
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id === nodeId) {
@@ -259,13 +287,25 @@ export default function App() {
           return node
         })
       )
+      setIsDirty(true)
     },
-    [setNodes],
+    [setNodes, edges, history],
   )
 
   // ── Edge data update ────────────────────────────────────
   const updateEdgeData = useCallback(
     (edgeId: string, newData: Partial<EdgeData>) => {
+      // Debounce continuous slider changes: only snapshot first change per burst
+      const snapshotKey = 'edge-' + edgeId
+      const existing = sliderSnapshotRef.current
+      if (!existing.has(snapshotKey)) {
+        history.pushSnapshot(nodesRef.current, edges)
+        existing.set(snapshotKey, snapshotKey)
+        if (sliderTimerRef.current) clearTimeout(sliderTimerRef.current)
+        sliderTimerRef.current = setTimeout(() => {
+          sliderSnapshotRef.current.clear()
+        }, 400)
+      }
       setEdges((eds) =>
         eds.map((edge) => {
           if (edge.id === edgeId) {
@@ -274,275 +314,59 @@ export default function App() {
           return edge
         })
       )
+      setIsDirty(true)
     },
-    [setEdges],
+    [setEdges, edges, history],
   )
 
   // ── File Operations ──────────────────────────────────────
-  const handleNew = useCallback(() => {
-    if (nodes.length > 0 || edges.length > 0) {
-      setShowNewConfirm(true)
-    } else {
-      clearCanvas()
-    }
-  }, [nodes.length, edges.length])
-
-  const clearCanvas = useCallback(() => {
-    setNodes([])
-    setEdges([])
-    setSelectedNode(null)
-    setSelectedEdge(null)
-    setPanelCollapsed(true)
-    setShowNewConfirm(false)
-  }, [setNodes, setEdges])
-
-  const handleNewSave = useCallback(async () => {
-    if (rfInstance) {
-      const flow = rfInstance.toObject()
-      const topoFile = {
-        version: '1.0.0',
-        nodes: flow.nodes,
-        edges: flow.edges,
-        viewport: flow.viewport,
-      }
-      try {
-        const result = await window.electronAPI.saveFile(JSON.stringify(topoFile, null, 2))
-        if (result.success) {
-          console.log('Saved to:', result.filePath)
-          clearCanvas()
-        }
-      } catch (err) {
-        console.error('Save error:', err)
-      }
-    }
-  }, [rfInstance, clearCanvas])
-
-  const handleNewDiscard = useCallback(() => {
-    clearCanvas()
-  }, [clearCanvas])
-
-  const handleNewCancel = useCallback(() => {
-    setShowNewConfirm(false)
-  }, [])
-
-  const handleSave = useCallback(async () => {
-    if (!rfInstance) return
-    const flow = rfInstance.toObject()
-    const topoFile = {
-      version: '1.0.0',
-      nodes: flow.nodes,
-      edges: flow.edges,
-      viewport: flow.viewport,
-    }
-    try {
-      const result = await window.electronAPI.saveFile(JSON.stringify(topoFile, null, 2))
-      if (result.success) {
-        console.log('Saved to:', result.filePath)
-      } else if (!result.canceled) {
-        console.error('Save failed:', result.error)
-      }
-    } catch (err) {
-      console.error('Save error:', err)
-    }
-  }, [rfInstance])
-
-  const handleOpen = useCallback(async () => {
-    try {
-      const result = await window.electronAPI.openFile()
-      if (result.success && result.content) {
-        const topoFile = JSON.parse(result.content)
-        const loadedNodes = (topoFile.nodes || []).map((n: Node) => ({
-          ...n,
-          type: n.type || 'deviceNode',
-        }))
-        const loadedEdges = (topoFile.edges || []).map((e: Edge) => ({
-          ...e,
-          type: e.type || 'animated',
-          data: { ...defaultEdgeData, ...e.data },
-        }))
-        setNodes(loadedNodes)
-        setEdges(loadedEdges)
-        setPanelCollapsed(true)
-      }
-    } catch (err) {
-      console.error('Open error:', err)
-    }
-  }, [setNodes, setEdges])
-
-  const captureCanvas = useCallback(async (): Promise<string | null> => {
-    if (!reactFlowWrapper.current) return null
-    try {
-      const dataUrl = await toPng(reactFlowWrapper.current.querySelector('.react-flow') as HTMLElement, {
-        backgroundColor: '#FFFFFF',
-        pixelRatio: 2,
-      })
-      return dataUrl
-    } catch (err) {
-      console.error('Capture error:', err)
-      return null
-    }
-  }, [])
-
-  const handleExportPNG = useCallback(async () => {
-    const dataUrl = await captureCanvas()
-    if (!dataUrl) return
-    try {
-      await window.electronAPI.exportPNG(dataUrl)
-    } catch (err) {
-      console.error('Export PNG error:', err)
-    }
-  }, [captureCanvas])
-
-  const handleExportPDF = useCallback(async () => {
-    const dataUrl = await captureCanvas()
-    if (!dataUrl) return
-    try {
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-      })
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-
-      const img = new Image()
-      img.src = dataUrl
-      await new Promise<void>((resolve) => { img.onload = () => resolve() })
-
-      const imgRatio = img.width / img.height
-      let w = pageWidth - 40
-      let h = w / imgRatio
-      if (h > pageHeight - 40) {
-        h = pageHeight - 40
-        w = h * imgRatio
-      }
-      pdf.addImage(dataUrl, 'PNG', (pageWidth - w) / 2, (pageHeight - h) / 2, w, h)
-      const pdfDataUrl = pdf.output('datauristring')
-
-      await window.electronAPI.exportPDF(pdfDataUrl)
-    } catch (err) {
-      console.error('Export PDF error:', err)
-    }
-  }, [captureCanvas])
+  const {
+    handleNew,
+    clearCanvas,
+    handleNewSave,
+    handleNewDiscard,
+    handleNewCancel,
+    handleSave,
+    handleSaveAs,
+    handleOpen,
+    doOpen,
+    handleOpenByPath,
+    handleExportPNG,
+    handleExportPDF,
+  } = useFileOperations({
+    rfInstance,
+    currentFilePath,
+    isDirty,
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    setCurrentFilePath,
+    setIsDirty,
+    setShowOpenConfirm,
+    setShowNewConfirm,
+    setSelectedNode,
+    setSelectedEdge,
+    setPanelCollapsed,
+    containerRef: reactFlowWrapper,
+    history,
+    toast,
+    defaultEdgeData,
+  })
 
   // ── GIF export (Electron capturePage for animation preservation) ──
-  const [isExportingGIF, setIsExportingGIF] = useState(false)
-
-  const handleExportGIF = useCallback(async () => {
-    if (!reactFlowWrapper.current || isExportingGIF) return
-    const el = reactFlowWrapper.current.querySelector('.react-flow') as HTMLElement
-    if (!el) return
-
-    setIsExportingGIF(true)
-    try {
-      // Get bounding rect of the ReactFlow canvas in CSS pixels
-      const rect = el.getBoundingClientRect()
-      // Constrain to reasonable minimums
-      if (rect.width < 50 || rect.height < 50) {
-        alert('画布区域太小，无法导出 GIF')
-        return
-      }
-
-      const frameCount = 40       // more frames = smoother animation
-      const frameDelay = 55       // ms between frames (~18 fps)
-      const gifQuality = 3        // lower = better (1-30), 3 gives excellent color
-
-      // Capture frames using Electron's native page capture
-      // This preserves SVG animations (animateMotion, etc.) because it captures
-      // the actual rendered output, not a DOM clone like html-to-image does.
-      const frames: HTMLCanvasElement[] = []
-      let gifWidth = 0
-      let gifHeight = 0
-      const maxGifDim = 900 // max dimension for GIF output
-
-      for (let i = 0; i < frameCount; i++) {
-        // Wait between frames to let animations advance
-        if (i > 0) {
-          await new Promise<void>((resolve) => setTimeout(resolve, frameDelay))
-        }
-
-        const dataUrl = await window.electronAPI.captureFrame({
-          x: Math.round(rect.left),
-          y: Math.round(rect.top),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        })
-
-        if (!dataUrl) {
-          console.warn(`Frame ${i} capture failed, skipping`)
-          continue
-        }
-
-        const frameImg = new Image()
-        frameImg.src = dataUrl
-        await new Promise<void>((resolve2, reject2) => {
-          frameImg.onload = () => resolve2()
-          frameImg.onerror = () => reject2(new Error('Frame load failed'))
-        })
-
-        // Compute output size from first frame
-        if (i === 0) {
-          const ratio = Math.min(maxGifDim / frameImg.width, maxGifDim / frameImg.height, 1)
-          gifWidth = Math.round(frameImg.width * ratio)
-          gifHeight = Math.round(frameImg.height * ratio)
-        }
-
-        const frameCanvas = document.createElement('canvas')
-        frameCanvas.width = gifWidth
-        frameCanvas.height = gifHeight
-        const ctx = frameCanvas.getContext('2d')!
-        // Smooth downscaling for better quality
-        ctx.imageSmoothingEnabled = true
-        ctx.imageSmoothingQuality = 'high'
-        ctx.drawImage(frameImg, 0, 0, gifWidth, gifHeight)
-        frames.push(frameCanvas)
-      }
-
-      if (frames.length === 0) {
-        alert('未能捕获任何帧，GIF 导出失败')
-        return
-      }
-
-      console.log(`Captured ${frames.length} frames, ${gifWidth}x${gifHeight}`)
-
-      // Encode GIF using gif.js
-      const resultBlob = await new Promise<Blob>((resolve, reject) => {
-        const gifEncoder = new GIF({
-          workers: 2,
-          workerScript: gifWorkerUrl,
-          quality: gifQuality,
-          width: gifWidth,
-          height: gifHeight,
-          repeat: 0,           // loop forever
-          dither: true,        // better color reproduction
-        })
-        gifEncoder.on('finished', (blob: Blob) => resolve(blob))
-        gifEncoder.on('error', (err: Error) => reject(err))
-        frames.forEach((canvas) => {
-          gifEncoder.addFrame(canvas, { delay: frameDelay, copy: true })
-        })
-        gifEncoder.render()
-      })
-
-      // Convert blob to base64 data URL using FileReader
-      const gifDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => reject(reader.error)
-        reader.readAsDataURL(resultBlob)
-      })
-
-      await window.electronAPI.exportGIF(gifDataUrl)
-    } catch (err) {
-      console.error('Export GIF error:', err)
-      alert('GIF 导出失败，请重试')
-    } finally {
-      setIsExportingGIF(false)
-    }
-  }, [isExportingGIF])
+  const { isExportingGIF, handleExportGIF } = useGifExport({
+    containerRef: reactFlowWrapper,
+    toast,
+  })
 
   // ── Menu action listener ────────────────────────────────
   useEffect(() => {
-    const cleanup = window.electronAPI.onMenuAction((action: string) => {
+    const cleanup = window.electronAPI.onMenuAction((rawAction) => {
+      // Support both string and object payloads (for openRecent with filePath)
+      const action = typeof rawAction === 'string' ? rawAction : rawAction.action
+      const filePath = typeof rawAction === 'object' ? rawAction.filePath : undefined
+
       switch (action) {
         case 'new':
           handleNew()
@@ -551,8 +375,13 @@ export default function App() {
           handleOpen()
           break
         case 'save':
-        case 'saveAs':
           handleSave()
+          break
+        case 'saveAs':
+          handleSaveAs()
+          break
+        case 'openRecent':
+          if (filePath) handleOpenByPath(filePath)
           break
         case 'exportPNG':
           handleExportPNG()
@@ -579,9 +408,13 @@ export default function App() {
           if (rfInstance) {
             const selectedNodes = rfInstance.getNodes().filter(n => n.selected)
             const selectedEdges = rfInstance.getEdges().filter(e => e.selected)
-            rfInstance.deleteElements({ nodes: selectedNodes, edges: selectedEdges })
-            setSelectedNode(null)
-            setSelectedEdge(null)
+            if (selectedNodes.length > 0 || selectedEdges.length > 0) {
+              history.pushSnapshot(nodesRef.current, edges)
+              rfInstance.deleteElements({ nodes: selectedNodes, edges: selectedEdges })
+              setSelectedNode(null)
+              setSelectedEdge(null)
+              setIsDirty(true)
+            }
           }
           break
         case 'selectAll':
@@ -589,21 +422,62 @@ export default function App() {
             rfInstance.setNodes(nodesRef.current.map(n => ({ ...n, selected: true })))
           }
           break
-        case 'undo':
-          // Undo is not yet implemented — could use a history stack
-          console.log('Undo: not yet implemented')
+        case 'undo': {
+          const prev = history.undo()
+          if (prev) {
+            setNodes(prev.nodes)
+            setEdges(prev.edges)
+            setSelectedNode(null)
+            setSelectedEdge(null)
+          }
           break
-        case 'redo':
-          console.log('Redo: not yet implemented')
+        }
+        case 'redo': {
+          const next = history.redo()
+          if (next) {
+            setNodes(next.nodes)
+            setEdges(next.edges)
+            setSelectedNode(null)
+            setSelectedEdge(null)
+          }
           break
+        }
       }
     })
     return cleanup
-  }, [handleNew, handleOpen, handleSave, handleExportPNG, handleExportPDF, handleExportGIF, rfInstance])
+  }, [handleNew, handleOpen, doOpen, handleSave, handleSaveAs, handleOpenByPath, handleExportPNG, handleExportPDF, handleExportGIF, rfInstance, edges, history])
 
   // Sync selectedNode when nodes change
   const onNodesChangeWithSync = useCallback(
-    (changes: any[]) => {
+    (changes: NodeChange[]) => {
+      // Track drag start/stop to avoid snapshotting during drag
+      for (const c of changes) {
+        if (c.type === 'position' && c.dragging === true && !isDraggingRef.current) {
+          // Drag started — snapshot before position changes
+          isDraggingRef.current = true
+          history.pushSnapshot(nodesRef.current, edges)
+          setIsDirty(true)
+        }
+        if (c.type === 'position' && c.dragging === false) {
+          isDraggingRef.current = false
+        }
+        if (c.type === 'remove') {
+          // Node removed via keyboard delete — snapshot
+          if (!isDraggingRef.current) {
+            history.pushSnapshot(nodesRef.current, edges)
+            setIsDirty(true)
+          }
+        }
+        if (c.type === 'dimensions' && c.dimensions && c.resizing === true && !isDraggingRef.current) {
+          // Node resize started — snapshot
+          isDraggingRef.current = true
+          history.pushSnapshot(nodesRef.current, edges)
+          setIsDirty(true)
+        }
+        if (c.type === 'dimensions' && c.dimensions && c.resizing === false) {
+          isDraggingRef.current = false
+        }
+      }
       onNodesChange(changes)
       if (selectedNode) {
         setSelectedNode((prev) => {
@@ -612,11 +486,95 @@ export default function App() {
         })
       }
     },
-    [onNodesChange, selectedNode],
+    [onNodesChange, selectedNode, edges, history],
   )
 
+  // Sync when edges change via keyboard delete (React Flow internal)
+  const onEdgesChangeWithSync = useCallback(
+    (changes: any[]) => {
+      for (const c of changes) {
+        if (c.type === 'remove' && !isDraggingRef.current) {
+          history.pushSnapshot(nodesRef.current, edges)
+          setIsDirty(true)
+        }
+      }
+      onEdgesChange(changes)
+    },
+    [onEdgesChange, edges, history],
+  )
+
+  // ── Auto-save timer ─────────────────────────────────────
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (!isDirty || !rfInstance) return
+      try {
+        const flow = rfInstance.toObject()
+        const topoFile = {
+          version: '1.0.0',
+          nodes: flow.nodes,
+          edges: flow.edges,
+          viewport: flow.viewport,
+        }
+        const data = JSON.stringify(topoFile, null, 2)
+        if (currentFilePath) {
+          // Silent save to known path
+          await window.electronAPI.saveFile(data, currentFilePath)
+          console.log('[Auto-save] saved to:', currentFilePath)
+        } else {
+          // Save to autosave backup
+          await window.electronAPI.autoSave(data)
+          console.log('[Auto-save] saved to backup')
+        }
+        setIsDirty(false)
+      } catch (err) {
+        console.error('[Auto-save] error:', err)
+      }
+    }, 120_000) // 2 minutes
+
+    return () => clearInterval(timer)
+  }, [isDirty, currentFilePath, rfInstance])
+
+  // ── Check for auto-save on startup ──────────────────────
+  useEffect(() => {
+    window.electronAPI.checkAutoSave().then(result => {
+      if (result?.exists && result.content) {
+        setShowAutoSaveRecover(result.content)
+      }
+    }).catch(() => {})
+  }, []) // Run once on mount
+
+  const handleAutoSaveRecover = useCallback(() => {
+    const content = showAutoSaveRecover
+    setShowAutoSaveRecover(null)
+    if (!content) return
+    try {
+      const topoFile = JSON.parse(content)
+      const loadedNodes = (topoFile.nodes || []).map((n: Node) => ({
+        ...n,
+        type: n.type || 'deviceNode',
+      }))
+      const loadedEdges = (topoFile.edges || []).map((e: Edge) => ({
+        ...e,
+        type: e.type || 'animated',
+        data: { ...defaultEdgeData, ...e.data },
+      }))
+      setNodes(loadedNodes)
+      setEdges(loadedEdges)
+      setIsDirty(true)
+      history.clearHistory()
+      toast.showToast('已恢复未保存的拓扑图，请尽快保存 (Ctrl+S)', 'info')
+    } catch (err) {
+      console.error('[Auto-save] restore error:', err)
+    }
+  }, [showAutoSaveRecover, setNodes, setEdges, history])
+
+  const handleAutoSaveDismiss = useCallback(() => {
+    setShowAutoSaveRecover(null)
+    window.electronAPI.clearAutoSave().catch(() => {})
+  }, [])
+
   return (
-    <div className="flex flex-col w-screen h-screen bg-white">
+    <div className="flex flex-col w-screen h-screen bg-canvas">
       {/* Toolbar */}
       <Toolbar
         nodes={nodes}
@@ -625,11 +583,35 @@ export default function App() {
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         onNew={handleNew}
         onSave={handleSave}
+        onSaveAs={handleSaveAs}
         onOpen={handleOpen}
         onExportPNG={handleExportPNG}
         onExportPDF={handleExportPDF}
         onExportGIF={handleExportGIF}
         isExportingGIF={isExportingGIF}
+        isDirty={isDirty}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onUndo={() => {
+          const prev = history.undo()
+          if (prev) {
+            setNodes(prev.nodes)
+            setEdges(prev.edges)
+            setSelectedNode(null)
+            setSelectedEdge(null)
+          }
+        }}
+        onRedo={() => {
+          const next = history.redo()
+          if (next) {
+            setNodes(next.nodes)
+            setEdges(next.edges)
+            setSelectedNode(null)
+            setSelectedEdge(null)
+          }
+        }}
+        canUndo={history.canUndo()}
+        canRedo={history.canRedo()}
       />
 
       {/* Main content area */}
@@ -650,7 +632,7 @@ export default function App() {
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChangeWithSync}
-              onEdgesChange={onEdgesChange}
+              onEdgesChange={onEdgesChangeWithSync}
               onConnect={onConnect}
               isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
@@ -668,24 +650,24 @@ export default function App() {
               multiSelectionKeyCode="Shift"
               snapToGrid
               snapGrid={[10, 10]}
-              connectionLineStyle={{ stroke: '#2196F3', strokeWidth: 3 }}
-              className="bg-white"
+              connectionLineStyle={{ stroke: 'var(--color-connection-preview)', strokeWidth: 3 }}
+              className="bg-canvas"
             >
               <Background
                 variant={BackgroundVariant.Dots}
                 gap={20}
                 size={1}
-                color="#E5E5E5"
+                color="var(--color-canvas-grid)"
               />
               <Controls
                 position="bottom-right"
-                className="[&>button]:!bg-white [&>button]:!border-border [&>button]:!text-text-primary"
+                className="[&>button]:!bg-surface [&>button]:!border-border [&>button]:!text-text-primary"
               />
               <MiniMap
                 position="bottom-left"
                 className="!bg-sidebar !border-border"
-                maskColor="rgba(0,0,0,0.1)"
-                nodeColor="#E3F2FD"
+                maskColor="var(--color-minimap-mask)"
+                nodeColor="var(--color-minimap-node)"
               />
             </ReactFlow>
 
@@ -703,64 +685,13 @@ export default function App() {
 
           {/* ── Right-click context menu ── */}
           {contextMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setContextMenu(null)}
-                onContextMenu={(e) => { e.preventDefault(); setContextMenu(null) }}
-              />
-              <div
-                className="fixed z-50 bg-white border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
-                style={{ left: contextMenu.x, top: contextMenu.y }}
-              >
-                {contextMenu.type === 'edge' && (
-                  <>
-                    {/* Path style submenu */}
-                    <div className="px-3 py-1.5 text-2xs text-text-secondary font-medium">
-                      连接形式
-                    </div>
-                    <button
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
-                      onClick={() => handleEdgePathStyle('adaptive')}
-                    >
-                      <span className="w-4 text-center">↝</span>
-                      <span>自适应连接</span>
-                    </button>
-                    <button
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
-                      onClick={() => handleEdgePathStyle('straight')}
-                    >
-                      <span className="w-4 text-center">→</span>
-                      <span>直线连接</span>
-                    </button>
-                    <button
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
-                      onClick={() => handleEdgePathStyle('step')}
-                    >
-                      <span className="w-4 text-center">└</span>
-                      <span>肘形连接线</span>
-                    </button>
-                    <div className="border-t border-border my-0.5" />
-                    <button
-                      className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-red-50 transition-colors flex items-center gap-2"
-                      onClick={handleDeleteEdge}
-                    >
-                      <span>🗑️</span>
-                      <span>删除线缆</span>
-                    </button>
-                  </>
-                )}
-                {contextMenu.type === 'node' && (
-                  <button
-                    className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-red-50 transition-colors flex items-center gap-2"
-                    onClick={handleDeleteNode}
-                  >
-                    <span>🗑️</span>
-                    <span>删除设备及相关线缆</span>
-                  </button>
-                )}
-              </div>
-            </>
+            <CanvasContextMenu
+              contextMenu={contextMenu}
+              onClose={() => setContextMenu(null)}
+              onEdgePathStyle={handleEdgePathStyle}
+              onDeleteEdge={handleDeleteEdge}
+              onDeleteNode={handleDeleteNode}
+            />
           )}
         </div>
 
@@ -786,51 +717,51 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Save confirmation dialog ── */}
-      {showNewConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={handleNewCancel}
-          />
-          <div className="relative bg-white rounded-xl shadow-2xl border border-border p-6 w-[400px] max-w-[90vw]">
-            <div className="flex items-start gap-3 mb-5">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-xl">
-                ⚠️
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-text-primary mb-1">
-                  是否保存当前拓扑？
-                </h3>
-                <p className="text-xs text-text-secondary leading-relaxed">
-                  画布上现有 {nodes.length} 个设备和 {edges.length} 条连线。
-                  如果不保存，所有修改将会丢失。
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={handleNewCancel}
-                className="px-4 py-1.5 text-xs font-medium rounded-md bg-white border border-border hover:bg-hover-bg transition-colors text-text-primary"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleNewDiscard}
-                className="px-4 py-1.5 text-xs font-medium rounded-md bg-white border border-danger text-danger hover:bg-red-50 transition-colors"
-              >
-                不保存
-              </button>
-              <button
-                onClick={handleNewSave}
-                className="px-4 py-1.5 text-xs font-medium rounded-md bg-select-border text-white hover:opacity-90 transition-opacity"
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Toast notifications ── */}
+      <ToastContainer />
+
+      {/* ── Confirmation: Save before new ── */}
+      <ConfirmDialog
+        open={showNewConfirm}
+        title="是否保存当前拓扑？"
+        message={
+          <>
+            画布上现有 {nodes.length} 个设备和 {edges.length} 条连线。
+            如果不保存，所有修改将会丢失。
+          </>
+        }
+        confirmLabel="保存"
+        discardLabel="不保存"
+        onDiscard={handleNewDiscard}
+        cancelLabel="取消"
+        variant="warning"
+        onConfirm={handleNewSave}
+        onCancel={handleNewCancel}
+      />
+
+      {/* ── Confirmation: Save before open ── */}
+      <ConfirmDialog
+        open={showOpenConfirm}
+        title="是否保存当前拓扑？"
+        message="当前画布有未保存的修改。是否保存后再打开文件？"
+        confirmLabel="不保存，直接打开"
+        cancelLabel="取消"
+        variant="warning"
+        onConfirm={doOpen}
+        onCancel={() => setShowOpenConfirm(false)}
+      />
+
+      {/* ── Confirmation: Auto-save recovery ── */}
+      <ConfirmDialog
+        open={showAutoSaveRecover !== null}
+        title="恢复未保存的拓扑图？"
+        message="检测到上次未保存的拓扑图。是否恢复？（恢复后请尽快手动保存 Ctrl+S）"
+        confirmLabel="恢复"
+        cancelLabel="丢弃"
+        variant="warning"
+        onConfirm={handleAutoSaveRecover}
+        onCancel={handleAutoSaveDismiss}
+      />
     </div>
   )
 }

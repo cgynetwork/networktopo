@@ -111,3 +111,29 @@ export interface TopoFile {
     data: EdgeData
   }>
 }
+
+// ── Type-safe node/edge accessors ─────────────────────────
+
+import type { Node as RFNode, Edge as RFEdge } from '@xyflow/react'
+
+/** React Flow node typed with Topo's NodeData */
+export type TopoNode = RFNode<NodeData>
+
+/** React Flow edge typed with Topo's EdgeData */
+export type TopoEdge = RFEdge<EdgeData>
+
+/** Safely extract device info from a node's data (avoid scattering `as any`) */
+export function getDeviceFromNode(node: RFNode): DeviceModel | undefined {
+  const data = node?.data as NodeData | undefined
+  return data?.device
+}
+
+/** Safely extract NodeData from a generic React Flow node */
+export function getNodeData(node: RFNode): NodeData | undefined {
+  return node?.data as NodeData | undefined
+}
+
+/** Safely extract EdgeData from a generic React Flow edge */
+export function getEdgeData(edge: RFEdge): EdgeData | undefined {
+  return edge?.data as EdgeData | undefined
+}

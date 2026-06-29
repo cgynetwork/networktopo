@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { CategoryRow, DeviceRow } from '../../types'
 import AddDeviceModal from './AddDeviceModal'
 
@@ -24,6 +24,7 @@ export default function Sidebar(_props: SidebarProps) {
   const [loading, setLoading] = useState(true)
   const [hoveredDevice, setHoveredDevice] = useState<DeviceRow | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load devices from database
   const loadDevices = useCallback(async () => {
@@ -85,26 +86,40 @@ export default function Sidebar(_props: SidebarProps) {
   }, [])
 
   const handleSearchChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value
       setSearchQuery(value)
+
+      // Clear any pending debounce timer
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current)
+        searchTimerRef.current = null
+      }
+
       if (value.trim()) {
-        try {
-          const results = await window.electronAPI.searchDevices(value)
-          setDevices(results)
-        } catch {
-          // fall back to local search
-        }
+        // Debounce API call by 300ms
+        searchTimerRef.current = setTimeout(async () => {
+          try {
+            const results = await window.electronAPI.searchDevices(value)
+            setDevices(results)
+          } catch {
+            // fall back to local search (results already filtered via useMemo)
+          }
+        }, 300)
       } else {
-        // Reload all devices
-        try {
-          const devs = await window.electronAPI.getDevices()
-          setDevices(devs)
-        } catch { /* ignore */ }
+        // Reload all devices immediately on clear
+        window.electronAPI.getDevices().then(setDevices).catch(() => {})
       }
     },
     []
   )
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    }
+  }, [])
 
   // ── Render: Search mode ──────────────────────────────────
   if (searchQuery.trim() && searchResults) {
@@ -117,7 +132,7 @@ export default function Sidebar(_props: SidebarProps) {
               placeholder="搜索设备..."
               value={searchQuery}
               onChange={handleSearchChange}
-              className="w-full h-8 pl-8 pr-2 text-xs rounded border border-border bg-white text-text-primary placeholder-text-secondary focus:outline-none focus:border-select-border transition-colors"
+              className="w-full h-8 pl-8 pr-2 text-xs rounded border border-border bg-surface text-text-primary placeholder-text-secondary focus:outline-none focus:border-select-border transition-colors"
             />
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-text-secondary">🔍</span>
           </div>
@@ -149,7 +164,7 @@ export default function Sidebar(_props: SidebarProps) {
             placeholder="搜索设备..."
             value={searchQuery}
             onChange={handleSearchChange}
-            className="w-full h-8 pl-8 pr-2 text-xs rounded border border-border bg-white text-text-primary placeholder-text-secondary focus:outline-none focus:border-select-border transition-colors"
+            className="w-full h-8 pl-8 pr-2 text-xs rounded border border-border bg-surface text-text-primary placeholder-text-secondary focus:outline-none focus:border-select-border transition-colors"
           />
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-text-secondary">🔍</span>
         </div>
@@ -279,7 +294,7 @@ function DeviceListItem({
 // ── Hover tooltip ──────────────────────────────────────────
 function DeviceTooltip({ device }: { device: DeviceRow }) {
   return (
-    <div className="fixed left-[270px] top-20 z-50 w-64 p-3 bg-white border border-border rounded-lg shadow-lg pointer-events-none">
+    <div className="fixed left-[270px] top-20 z-50 w-64 p-3 bg-surface border border-border rounded-lg shadow-lg pointer-events-none">
       <div className="text-sm font-semibold text-text-primary">
         {device.vendor_name} {device.model}
       </div>
@@ -305,11 +320,11 @@ function DeviceTooltip({ device }: { device: DeviceRow }) {
 // ── Helpers ────────────────────────────────────────────────
 function getCategoryColor(categoryName: string): string {
   const colors: Record<string, string> = {
-    '防火墙': '#EF4444',
-    '交换机': '#2196F3',
-    '无线控制器': '#8B5CF6',
-    '无线接入点': '#10B981',
-    '服务器': '#F59E0B',
+    '防火墙': 'var(--color-cat-firewall-accent)',
+    '交换机': 'var(--color-cat-switch-accent)',
+    '无线控制器': 'var(--color-cat-ac-accent)',
+    '无线接入点': 'var(--color-cat-ap-accent)',
+    '服务器': 'var(--color-cat-server-accent)',
   }
-  return colors[categoryName] || '#6B7280'
+  return colors[categoryName] || 'var(--color-cat-default-accent)'
 }

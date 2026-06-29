@@ -1,3 +1,5 @@
+@import './themes.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,8 +15,8 @@ html, body, #root {
   height: 100vh;
   overflow: hidden;
   font-family: 'Microsoft YaHei', -apple-system, sans-serif;
-  color: #1A1A1A;
-  background: #FFFFFF;
+  color: var(--color-text-primary);
+  background: var(--color-canvas);
 }
 
 /* Scrollbar styling */
@@ -44,3 +46,10 @@ html, body, #root {
 .react-flow__attribution {
   display: none !important;
 }
+
+/* React Flow MiniMap theme-aware */
+.react-flow__minimap {
+  background-color: var(--color-sidebar) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
