@@ -1,0 +1,15 @@
+node:internal/modules/cjs/loader:1087
+  throw err;
+  ^
+
+Error: Cannot find module 'd:\CGY\Vibe'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1084:15)
+    at Module._load (node:internal/modules/cjs/loader:929:27)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:101:12)
+    at node:internal/main/run_main_module:23:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v18.18.2

@@ -1,0 +1,11 @@
+libpng warning: iCCP: cHRM chunk does not match sRGB
+able to move the cache: 拒绝访问。 (0x5)
+[26812:0628/165452.130:ERROR:cache_util_win.cc(20)] Unable to move the cache: 拒绝访问。 (0x5)
+[26812:0628/165452.130:ERROR:cache_util_win.cc(20)] Unable to move the cache: 拒绝访问。 (0x5)
+[26812:0628/165452.131:ERROR:disk_cache.cc(208)] Unable to create cache
+[26812:0628/165452.131:ERROR:gpu_disk_cache.cc(711)] Gpu Cache Creation failed: -2
+[26812:0628/165452.131:ERROR:disk_cache.cc(208)] Unable to create cache
+[26812:0628/165452.131:ERROR:gpu_disk_cache.cc(711)] Gpu Cache Creation failed: -2
+[26812:0628/165452.132:ERROR:disk_cache.cc(208)] Unable to create cache
+[26812:0628/165452.132:ERROR:gpu_disk_cache.cc(711)] Gpu Cache Creation failed: -2
+libpng warning: iCCP: cHRM chunk does not match sRGB

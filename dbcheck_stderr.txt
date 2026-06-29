@@ -1,0 +1,12 @@
+App threw an error during load
+SqliteError: no such table: categories
+    at Database.prepare (D:\CGY\Vibe Coding\Topo\node_modules\better-sqlite3\lib\methods\wrappers.js:5:21)
+    at Object.<anonymous> (D:\CGY\Vibe Coding\Topo\checkdb.js:1:179)
+    at Module._compile (node:internal/modules/cjs/loader:1484:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1564:10)
+    at Module.load (node:internal/modules/cjs/loader:1295:32)
+    at Module._load (node:internal/modules/cjs/loader:1111:12)
+    at c._load (node:electron/js2c/node_init:2:16955)
+    at cjsLoader (node:internal/modules/esm/translators:350:17)
+    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:286:7)
+    at ModuleJob.run (node:internal/modules/esm/module_job:234:25)

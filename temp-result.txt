@@ -1,0 +1,2 @@
+electron OK: app=undefined BrowserWindow=undefined
+process.type: undefined
