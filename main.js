@@ -5,6 +5,7 @@
 const { app, BrowserWindow, shell, ipcMain, dialog, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
 const Database = require('better-sqlite3')
 
 // ── Database ──────────────────────────────────────────────
@@ -184,6 +185,24 @@ function registerDeviceHandlers() {
     return { success: true }
   })
 
+  ipcMain.handle('db:updateDevice', (_e, id, updates) => {
+    const db = getDatabase()
+    const allowed = ['category_id', 'vendor_id', 'model', 'description', 'ports_info', 'image_path']
+    const setClauses = []
+    const values = []
+    for (const key of allowed) {
+      if (key in updates) {
+        setClauses.push(`${key} = ?`)
+        values.push(updates[key])
+      }
+    }
+    if (setClauses.length === 0) return { success: false, error: 'No fields to update' }
+    setClauses.push("updated_at = datetime('now')")
+    values.push(id)
+    db.prepare(`UPDATE device_models SET ${setClauses.join(', ')} WHERE id = ?`).run(...values)
+    return { success: true }
+  })
+
   ipcMain.handle('db:getVendors', () =>
     getDatabase().prepare('SELECT * FROM vendors ORDER BY name').all())
 
@@ -192,6 +211,11 @@ function registerDeviceHandlers() {
       const r = getDatabase().prepare('INSERT INTO vendors (name) VALUES (?)').run(name)
       return { success: true, id: r.lastInsertRowid }
     } catch { return { success: false, error: '厂商已存在' } }
+  })
+
+  ipcMain.handle('db:updateDeviceImage', (_e, id, imagePath) => {
+    getDatabase().prepare("UPDATE device_models SET image_path=?, updated_at=datetime('now') WHERE id=?").run(imagePath, id)
+    return { success: true }
   })
 }
 
@@ -259,6 +283,62 @@ function registerFileHandlers() {
       const image = await win.webContents.capturePage(opts)
       return image.toDataURL()
     } catch (e) { return null }
+  })
+
+  // ── Device image management ──────────────────────────────
+  const deviceImagesDir = path.join(app.getPath('userData'), 'device-images')
+
+  function ensureDeviceImagesDir() {
+    if (!fs.existsSync(deviceImagesDir)) {
+      fs.mkdirSync(deviceImagesDir, { recursive: true })
+    }
+  }
+
+  ipcMain.handle('file:pickDeviceImage', async () => {
+    const win = BrowserWindow.getFocusedWindow(); if (!win) return { success: false, error: 'No active window' }
+    const r = await dialog.showOpenDialog(win, {
+      title: '选择设备图片',
+      filters: [{ name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      properties: ['openFile'],
+    })
+    if (r.canceled || r.filePaths.length === 0) return { success: false, canceled: true }
+    try {
+      ensureDeviceImagesDir()
+      const ext = path.extname(r.filePaths[0]).toLowerCase() || '.png'
+      const storedName = `${crypto.randomUUID()}${ext}`
+      fs.copyFileSync(r.filePaths[0], path.join(deviceImagesDir, storedName))
+      return { success: true, originalName: path.basename(r.filePaths[0]), storedPath: storedName }
+    } catch (e) { return { success: false, error: e.message } }
+  })
+
+  ipcMain.handle('file:readDeviceImage', async (_e, basename) => {
+    try {
+      if (!/^[a-zA-Z0-9_.-]+$/.test(basename)) return { success: false, error: 'Invalid filename' }
+      ensureDeviceImagesDir()
+      const fp = path.join(deviceImagesDir, basename)
+      const dir = deviceImagesDir.replace(/\\/g, '/') + '/'
+      const target = fp.replace(/\\/g, '/')
+      if (!target.startsWith(dir)) return { success: false, error: 'Access denied' }
+      if (!fs.existsSync(fp)) return { success: false, error: 'File not found' }
+      const buffer = fs.readFileSync(fp)
+      const ext = path.extname(basename).toLowerCase()
+      const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
+      const mime = mimeMap[ext] || 'image/png'
+      return { success: true, dataUrl: `data:${mime};base64,${buffer.toString('base64')}` }
+    } catch (e) { return { success: false, error: e.message } }
+  })
+
+  ipcMain.handle('file:deleteDeviceImage', async (_e, basename) => {
+    try {
+      if (!/^[a-zA-Z0-9_.-]+$/.test(basename)) return { success: false, error: 'Invalid filename' }
+      ensureDeviceImagesDir()
+      const fp = path.join(deviceImagesDir, basename)
+      const dir = deviceImagesDir.replace(/\\/g, '/') + '/'
+      const target = fp.replace(/\\/g, '/')
+      if (!target.startsWith(dir)) return { success: false, error: 'Access denied' }
+      if (fs.existsSync(fp)) fs.unlinkSync(fp)
+      return { success: true }
+    } catch (e) { return { success: false, error: e.message } }
   })
 }
 

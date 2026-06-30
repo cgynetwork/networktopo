@@ -102,19 +102,29 @@ export default function App() {
   const onConnect = useCallback(
     (connection: Connection) => {
       console.log('[onConnect] connection created:', connection)
-      // Auto-populate port labels from device ports_info
-      const srcNode = nodesRef.current.find(n => n.id === connection.source)
-      const tgtNode = nodesRef.current.find(n => n.id === connection.target)
-      const srcDevice = getDeviceFromNode(srcNode!)
-      const tgtDevice = getDeviceFromNode(tgtNode!)
-      const srcPortsInfo = srcDevice?.ports_info
-      const sourcePort = srcPortsInfo
-        ? (listAllPorts(srcPortsInfo)[0] || getDefaultPortLabel(srcPortsInfo))
-        : ''
-      const tgtPortsInfo = tgtDevice?.ports_info
-      const targetPort = tgtPortsInfo
-        ? (listAllPorts(tgtPortsInfo)[0] || getDefaultPortLabel(tgtPortsInfo))
-        : ''
+      // V0.8.0: Extract port labels from handle IDs when using port-level handles.
+      // New handle IDs are the port labels themselves (e.g. "GE1", "SFP3").
+      // Old handle IDs follow the pattern "side-type-n" (e.g. "top-src-0") — fall back.
+      const isPortHandle = (id?: string | null): id is string =>
+        !!id && !id.includes('-src-') && !id.includes('-tgt-')
+
+      // Prefer handle ID as port label; fall back to auto-assign for old-format handles
+      let sourcePort = isPortHandle(connection.sourceHandle) ? connection.sourceHandle : ''
+      let targetPort = isPortHandle(connection.targetHandle) ? connection.targetHandle : ''
+
+      // Fallback: auto-assign first available port when handle ID is old-format
+      if (!sourcePort || !targetPort) {
+        const srcNode = nodesRef.current.find(n => n.id === connection.source)
+        const tgtNode = nodesRef.current.find(n => n.id === connection.target)
+        const srcDevice = getDeviceFromNode(srcNode!)
+        const tgtDevice = getDeviceFromNode(tgtNode!)
+        if (!sourcePort && srcDevice?.ports_info) {
+          sourcePort = listAllPorts(srcDevice.ports_info)[0] || getDefaultPortLabel(srcDevice.ports_info)
+        }
+        if (!targetPort && tgtDevice?.ports_info) {
+          targetPort = listAllPorts(tgtDevice.ports_info)[0] || getDefaultPortLabel(tgtDevice.ports_info)
+        }
+      }
 
       history.pushSnapshot(nodesRef.current, edges)
       setEdges((eds) =>

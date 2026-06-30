@@ -85,7 +85,7 @@ export default function Toolbar({
           {isDirty && <span className="text-amber-500 mr-0.5">•</span>}
           Topo
         </span>
-        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V0.6.0</span>
+        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V0.8.0</span>
         <span className="text-xs text-text-secondary">
           节点 {nodes.length} · 连线 {edges.length}
         </span>

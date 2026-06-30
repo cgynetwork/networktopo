@@ -1,10 +1,11 @@
-import { memo } from 'react'
+import { memo, useState, useRef, useCallback } from 'react'
 import {
   BaseEdge,
   getBezierPath,
   getStraightPath,
   getSmoothStepPath,
   EdgeLabelRenderer,
+  useReactFlow,
   type EdgeProps,
   type Position,
 } from '@xyflow/react'
@@ -103,6 +104,95 @@ function AnimatedEdge({
   const tgtPortX = distT > 0 ? targetX + (dxT / distT) * portOffset : targetX - 28
   const tgtPortY = distT > 0 ? targetY + (dyT / distT) * portOffset : targetY
 
+  // ── V0.8.1: Draggable port label offsets ──────────────────
+  const { setEdges } = useReactFlow()
+
+  // Source port label drag state
+  const [srcOffset, setSrcOffset] = useState({
+    x: edgeData.sourcePortOffsetX ?? 0,
+    y: edgeData.sourcePortOffsetY ?? 0,
+  })
+  const [srcDragging, setSrcDragging] = useState(false)
+  const srcDragRef = useRef({ startMX: 0, startMY: 0, baseOX: 0, baseOY: 0, curOX: 0, curOY: 0 })
+
+  // Target port label drag state
+  const [tgtOffset, setTgtOffset] = useState({
+    x: edgeData.targetPortOffsetX ?? 0,
+    y: edgeData.targetPortOffsetY ?? 0,
+  })
+  const [tgtDragging, setTgtDragging] = useState(false)
+  const tgtDragRef = useRef({ startMX: 0, startMY: 0, baseOX: 0, baseOY: 0, curOX: 0, curOY: 0 })
+
+  const handleSrcMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    srcDragRef.current = {
+      startMX: e.clientX, startMY: e.clientY,
+      baseOX: srcOffset.x, baseOY: srcOffset.y,
+      curOX: srcOffset.x, curOY: srcOffset.y,
+    }
+    setSrcDragging(true)
+    const onMouseMove = (e2: MouseEvent) => {
+      const dx = e2.clientX - srcDragRef.current.startMX
+      const dy = e2.clientY - srcDragRef.current.startMY
+      const nx = srcDragRef.current.baseOX + dx
+      const ny = srcDragRef.current.baseOY + dy
+      srcDragRef.current.curOX = nx
+      srcDragRef.current.curOY = ny
+      setSrcOffset({ x: nx, y: ny })
+    }
+    const onMouseUp = () => {
+      setSrcDragging(false)
+      const fx = srcDragRef.current.curOX
+      const fy = srcDragRef.current.curOY
+      setEdges((eds) => eds.map((edge) => {
+        if (edge.id === id) {
+          return { ...edge, data: { ...edge.data, sourcePortOffsetX: fx, sourcePortOffsetY: fy } }
+        }
+        return edge
+      }))
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [id, setEdges, srcOffset.x, srcOffset.y])
+
+  const handleTgtMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    tgtDragRef.current = {
+      startMX: e.clientX, startMY: e.clientY,
+      baseOX: tgtOffset.x, baseOY: tgtOffset.y,
+      curOX: tgtOffset.x, curOY: tgtOffset.y,
+    }
+    setTgtDragging(true)
+    const onMouseMove = (e2: MouseEvent) => {
+      const dx = e2.clientX - tgtDragRef.current.startMX
+      const dy = e2.clientY - tgtDragRef.current.startMY
+      const nx = tgtDragRef.current.baseOX + dx
+      const ny = tgtDragRef.current.baseOY + dy
+      tgtDragRef.current.curOX = nx
+      tgtDragRef.current.curOY = ny
+      setTgtOffset({ x: nx, y: ny })
+    }
+    const onMouseUp = () => {
+      setTgtDragging(false)
+      const fx = tgtDragRef.current.curOX
+      const fy = tgtDragRef.current.curOY
+      setEdges((eds) => eds.map((edge) => {
+        if (edge.id === id) {
+          return { ...edge, data: { ...edge.data, targetPortOffsetX: fx, targetPortOffsetY: fy } }
+        }
+        return edge
+      }))
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [id, setEdges, tgtOffset.x, tgtOffset.y])
+
   return (
     <>
       {/* Base line — thick and clearly colored */}
@@ -180,48 +270,64 @@ function AnimatedEdge({
         </>
       )}
 
-      {/* Bandwidth label — centered on the edge */}
+      {/* Bandwidth label — SVG text with outline halo rendered after BaseEdge so it
+          paints above the edge path (V0.8.4). paintOrder="stroke fill" renders the
+          stroke behind the fill, creating a halo that ensures text readability
+          regardless of cable color or position underneath. */}
       {edgeData.bandwidth && (
-        <EdgeLabelRenderer>
-          <div
-            className="absolute text-2xs bg-surface/90 px-1 py-0.5 rounded border border-border text-text-secondary pointer-events-none"
-            style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            }}
-          >
-            {edgeData.bandwidth}
-          </div>
-        </EdgeLabelRenderer>
+        <text
+          x={labelX}
+          y={labelY}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={9}
+          fill="var(--color-text-secondary)"
+          stroke="var(--color-canvas)"
+          strokeWidth={3.5}
+          paintOrder="stroke fill"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fontFamily="'Microsoft YaHei', -apple-system, sans-serif"
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        >
+          {edgeData.bandwidth}
+        </text>
       )}
 
-      {/* Source port label — near source end */}
+      {/* Source port label — near source end, draggable (V0.8.1) */}
       {edgeData.sourcePort && (
         <EdgeLabelRenderer>
           <div
-            className="absolute text-2xs px-1 py-0.5 rounded border font-mono pointer-events-none"
+            className="absolute text-2xs px-1 py-0.5 rounded border font-mono select-none"
             style={{
               backgroundColor: 'var(--color-port-source-bg)',
               color: 'var(--color-port-source-text)',
               borderColor: 'var(--color-port-source-border)',
-              transform: `translate(-50%, -50%) translate(${srcPortX}px, ${srcPortY}px)`,
+              cursor: srcDragging ? 'grabbing' : 'grab',
+              pointerEvents: 'all',
+              transform: `translate(-50%, -50%) translate(${srcPortX + srcOffset.x}px, ${srcPortY + srcOffset.y}px)`,
             }}
+            onMouseDown={handleSrcMouseDown}
           >
             {edgeData.sourcePort}
           </div>
         </EdgeLabelRenderer>
       )}
 
-      {/* Target port label — near target end */}
+      {/* Target port label — near target end, draggable (V0.8.1) */}
       {edgeData.targetPort && (
         <EdgeLabelRenderer>
           <div
-            className="absolute text-2xs px-1 py-0.5 rounded border font-mono pointer-events-none"
+            className="absolute text-2xs px-1 py-0.5 rounded border font-mono select-none"
             style={{
               backgroundColor: 'var(--color-port-target-bg)',
               color: 'var(--color-port-target-text)',
               borderColor: 'var(--color-port-target-border)',
-              transform: `translate(-50%, -50%) translate(${tgtPortX}px, ${tgtPortY}px)`,
+              cursor: tgtDragging ? 'grabbing' : 'grab',
+              pointerEvents: 'all',
+              transform: `translate(-50%, -50%) translate(${tgtPortX + tgtOffset.x}px, ${tgtPortY + tgtOffset.y}px)`,
             }}
+            onMouseDown={handleTgtMouseDown}
           >
             {edgeData.targetPort}
           </div>

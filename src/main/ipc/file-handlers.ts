@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow, app, Menu } from 'electron'
-import { writeFileSync, readFileSync, existsSync } from 'fs'
-import { join, basename } from 'path'
+import { writeFileSync, readFileSync, existsSync, mkdirSync, copyFileSync, unlinkSync } from 'fs'
+import { join, basename, extname } from 'path'
+import { randomUUID } from 'crypto'
 
 // ── Recent files management ──────────────────────────────
 const MAX_RECENT = 10
@@ -291,6 +292,111 @@ export function registerFileHandlers(): void {
       const buffer = Buffer.from(base64, 'base64')
       writeFileSync(result.filePath, buffer)
       return { success: true, filePath: result.filePath }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // ── Device image management ──────────────────────────────
+
+  const deviceImagesDir = join(app.getPath('userData'), 'device-images')
+
+  /** Ensure the device-images directory exists */
+  function ensureDeviceImagesDir(): void {
+    if (!existsSync(deviceImagesDir)) {
+      mkdirSync(deviceImagesDir, { recursive: true })
+    }
+  }
+
+  /** Validate that a resolved path is inside deviceImagesDir (prevent path traversal) */
+  function isInsideDeviceImagesDir(resolved: string): boolean {
+    // Normalize separators for consistent comparison
+    const dir = deviceImagesDir.replace(/\\/g, '/') + '/'
+    const target = resolved.replace(/\\/g, '/')
+    return target.startsWith(dir)
+  }
+
+  // Pick a device image from the user's filesystem
+  ipcMain.handle('file:pickDeviceImage', async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return { success: false, error: 'No active window' }
+
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择设备图片',
+      filters: [
+        { name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+      ],
+      properties: ['openFile'],
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true }
+    }
+
+    try {
+      ensureDeviceImagesDir()
+      const sourcePath = result.filePaths[0]
+      const ext = extname(sourcePath).toLowerCase() || '.png'
+      const storedName = `${randomUUID()}${ext}`
+      const destPath = join(deviceImagesDir, storedName)
+      copyFileSync(sourcePath, destPath)
+      return {
+        success: true,
+        originalName: basename(sourcePath),
+        storedPath: storedName,   // basename only — portable across machines
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Read a stored device image and return it as a base64 data URL
+  ipcMain.handle('file:readDeviceImage', async (_event, basename: string) => {
+    try {
+      // Security: only allow alphanumeric, dash, underscore, dot in basename
+      if (!/^[a-zA-Z0-9_.-]+$/.test(basename)) {
+        return { success: false, error: 'Invalid filename' }
+      }
+      ensureDeviceImagesDir()
+      const filePath = join(deviceImagesDir, basename)
+      // Path traversal guard
+      if (!isInsideDeviceImagesDir(filePath)) {
+        return { success: false, error: 'Access denied' }
+      }
+      if (!existsSync(filePath)) {
+        return { success: false, error: 'File not found' }
+      }
+      const buffer = readFileSync(filePath)
+      const ext = extname(basename).toLowerCase()
+      const mimeMap: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+      }
+      const mime = mimeMap[ext] || 'image/png'
+      const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`
+      return { success: true, dataUrl }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Delete a stored device image
+  ipcMain.handle('file:deleteDeviceImage', async (_event, basename: string) => {
+    try {
+      if (!/^[a-zA-Z0-9_.-]+$/.test(basename)) {
+        return { success: false, error: 'Invalid filename' }
+      }
+      ensureDeviceImagesDir()
+      const filePath = join(deviceImagesDir, basename)
+      if (!isInsideDeviceImagesDir(filePath)) {
+        return { success: false, error: 'Access denied' }
+      }
+      if (existsSync(filePath)) {
+        unlinkSync(filePath)
+      }
+      return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }
     }

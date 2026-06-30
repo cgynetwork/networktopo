@@ -42,6 +42,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('db:updateDeviceDescription', id, description),
   addDevice: (device: any) => ipcRenderer.invoke('db:addDevice', device),
   deleteDevice: (id: number) => ipcRenderer.invoke('db:deleteDevice', id),
+  updateDevice: (id: number, updates: Record<string, unknown>) =>
+    ipcRenderer.invoke('db:updateDevice', id, updates),
   getVendors: () => ipcRenderer.invoke('db:getVendors'),
   addVendor: (name: string) => ipcRenderer.invoke('db:addVendor', name),
+
+  // Device image management
+  pickDeviceImage: () => ipcRenderer.invoke('file:pickDeviceImage'),
+  readDeviceImage: (basename: string) => ipcRenderer.invoke('file:readDeviceImage', basename),
+  deleteDeviceImage: (basename: string) => ipcRenderer.invoke('file:deleteDeviceImage', basename),
+  updateDeviceImage: (id: number, imagePath: string | null) => ipcRenderer.invoke('db:updateDeviceImage', id, imagePath),
 })

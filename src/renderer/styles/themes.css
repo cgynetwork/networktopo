@@ -92,6 +92,25 @@
   --color-cat-default-border: #E5E5E5;
   --color-cat-default-accent: #6B7280;
   --color-cat-default-light: #F3F4F6;
+
+  /* Port type colors — V0.7.0 realistic rendering */
+  --color-port-copper-fill: #3D3D3D;
+  --color-port-copper-stroke: #6B7280;
+  --color-port-sfp-fill: #1E3A5F;
+  --color-port-sfp-stroke: #5A80A8;
+  --color-port-qsfp-fill: #1A3D3D;
+  --color-port-qsfp-stroke: #4A8888;
+  --color-port-teng-fill: #1F2D4A;
+  --color-port-teng-stroke: #5A70A0;
+  --color-port-mgmt-fill: #6B6B6B;
+  --color-port-mgmt-stroke: #9CA3AF;
+  --color-port-led-link: #22C55E;
+  --color-port-led-activity: #F59E0B;
+  --color-port-label-text: #9CA3AF;
+
+  /* Device image section */
+  --color-device-image-border: #E5E5E5;
+  --color-device-image-bg: #FAFAFA;
 }
 
 /* ── Gilded 鎏金 theme (luxurious dark + gold) ────────────── */
@@ -184,6 +203,25 @@
   --color-cat-default-border: #3A3558;
   --color-cat-default-accent: #8B7D6B;
   --color-cat-default-light: #1E2846;
+
+  /* Port type colors — gilded dark theme */
+  --color-port-copper-fill: #2A2530;
+  --color-port-copper-stroke: #5A5060;
+  --color-port-sfp-fill: #1A2035;
+  --color-port-sfp-stroke: #3A4A6A;
+  --color-port-qsfp-fill: #152820;
+  --color-port-qsfp-stroke: #2A4A40;
+  --color-port-teng-fill: #1A2238;
+  --color-port-teng-stroke: #3A4A68;
+  --color-port-mgmt-fill: #3A3540;
+  --color-port-mgmt-stroke: #6A6070;
+  --color-port-led-link: #34D399;
+  --color-port-led-activity: #D4A040;
+  --color-port-label-text: #7A7080;
+
+  /* Device image section */
+  --color-device-image-border: #3A3558;
+  --color-device-image-bg: #151D33;
 }
 
 /* ── Gilded theme decorative enhancements ─────────────────── */

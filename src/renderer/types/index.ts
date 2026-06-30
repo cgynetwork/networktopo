@@ -77,7 +77,12 @@ export interface EdgeData {
   animSpeed?: number        // 动画速度 0.25-4，默认 1（倍数，值越大越慢）
   particleSize?: number     // 粒子大小 2-12px，默认 4.5
   effectColor?: string      // 特效颜色 hex，默认 #2196F3
-  elbowOffset?: number       // 肘形连接线偏移量 10-250px，默认 50。用于区分多条并行肘形线缆
+  elbowOffset?: number       // 肘形连接线偏移量 10-400px，默认 50。用于区分多条并行肘形线缆
+  // V0.8.1: Port label drag offsets — user-dragged label positions relative to default anchor
+  sourcePortOffsetX?: number  // 源端口标签水平拖拽偏移 (px)，默认 0
+  sourcePortOffsetY?: number  // 源端口标签垂直拖拽偏移 (px)，默认 0
+  targetPortOffsetX?: number  // 目标端口标签水平拖拽偏移 (px)，默认 0
+  targetPortOffsetY?: number  // 目标端口标签垂直拖拽偏移 (px)，默认 0
 }
 
 // Node data
@@ -91,6 +96,8 @@ export interface NodeData {
   customDeviceModel?: string
   customPorts?: string
   customColor?: string
+  description?: string
+  ipAddress?: string
 }
 
 // Topo file format

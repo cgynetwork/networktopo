@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { CategoryRow, VendorRow } from '../../types'
+import type { CategoryRow, VendorRow, DeviceRow } from '../../types'
+import { composePortsInfo, parseModularPorts } from '../../utils/portParser'
 
 interface AddDeviceModalProps {
+  device?: DeviceRow | null
   onClose: () => void
   onCreated: () => void
 }
 
-export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalProps) {
+export default function AddDeviceModal({ device, onClose, onCreated }: AddDeviceModalProps) {
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [vendors, setVendors] = useState<VendorRow[]>([])
   const [categoryId, setCategoryId] = useState<number>(0)
@@ -14,7 +16,12 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
   const [newVendorName, setNewVendorName] = useState('')
   const [model, setModel] = useState('')
   const [description, setDescription] = useState('')
-  const [portsInfo, setPortsInfo] = useState('')
+  // V0.7.1: Modular port counts
+  const [portsRJ45, setPortsRJ45] = useState<number>(0)
+  const [portsSFP, setPortsSFP] = useState<number>(0)
+  const [portsSFP28, setPortsSFP28] = useState<number>(0)
+  const [imagePath, setImagePath] = useState('')
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [showNewVendor, setShowNewVendor] = useState(false)
@@ -28,14 +35,30 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
         ])
         setCategories(cats)
         setVendors(vends)
-        if (cats.length > 0) setCategoryId(cats[0].id)
-        if (vends.length > 0) setVendorId(vends[0].id)
+
+        if (device) {
+          // Edit mode: pre-fill all fields
+          setCategoryId(device.category_id)
+          setVendorId(device.vendor_id)
+          setModel(device.model)
+          setDescription(device.description || '')
+          // V0.7.1: Parse ports_info into modular counts for editing
+          const parsed = parseModularPorts(device.ports_info || '')
+          setPortsRJ45(parsed.rj45)
+          setPortsSFP(parsed.sfp)
+          setPortsSFP28(parsed.tenG)
+          setImagePath(device.image_path || '')
+        } else {
+          // Create mode: default to first category and vendor
+          if (cats.length > 0) setCategoryId(cats[0].id)
+          if (vends.length > 0) setVendorId(vends[0].id)
+        }
       } catch (e) {
         console.error('Failed to load form data:', e)
       }
     }
     load()
-  }, [])
+  }, [device])
 
   const handleAddVendor = useCallback(async () => {
     const name = newVendorName.trim()
@@ -55,6 +78,31 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
       setError('添加厂商失败')
     }
   }, [newVendorName])
+
+  const handlePickImage = useCallback(async () => {
+    const result = await window.electronAPI.pickDeviceImage()
+    if (result.success && result.storedPath) {
+      setImagePath(result.storedPath)
+    }
+  }, [])
+
+  // Load image preview when imagePath changes (设备真机预览)
+  useEffect(() => {
+    if (imagePath) {
+      window.electronAPI
+        .readDeviceImage(imagePath)
+        .then((result) => {
+          if (result.success && result.dataUrl) {
+            setImagePreviewUrl(result.dataUrl)
+          } else {
+            setImagePreviewUrl(null)
+          }
+        })
+        .catch(() => setImagePreviewUrl(null))
+    } else {
+      setImagePreviewUrl(null)
+    }
+  }, [imagePath])
 
   const handleSubmit = useCallback(async () => {
     if (!categoryId || (!vendorId && !showNewVendor)) {
@@ -80,27 +128,52 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
           return
         }
       }
-      await window.electronAPI.addDevice({
-        category_id: categoryId,
-        vendor_id: finalVendorId,
-        model: model.trim(),
-        description: description.trim(),
-        ports_info: portsInfo.trim(),
-      })
+
+      if (device) {
+        // ── Edit mode: update existing device ──
+        const newImagePath = imagePath || null
+        const oldImagePath = device.image_path || null
+
+        // If image was changed and old image exists, clean up the old file
+        if (oldImagePath && newImagePath !== oldImagePath) {
+          await window.electronAPI.deleteDeviceImage(oldImagePath).catch(() => {})
+        }
+
+        await window.electronAPI.updateDevice(device.id, {
+          category_id: categoryId,
+          vendor_id: finalVendorId,
+          model: model.trim(),
+          description: description.trim(),
+          ports_info: composePortsInfo(portsRJ45, portsSFP, portsSFP28),
+          image_path: newImagePath,
+        })
+      } else {
+        // ── Create mode ──
+        await window.electronAPI.addDevice({
+          category_id: categoryId,
+          vendor_id: finalVendorId,
+          model: model.trim(),
+          description: description.trim(),
+          ports_info: composePortsInfo(portsRJ45, portsSFP, portsSFP28),
+          image_path: imagePath || undefined,
+        })
+      }
       onCreated()
     } catch {
-      setError('创建设备失败')
+      setError(device ? '更新设备失败' : '创建设备失败')
     } finally {
       setSubmitting(false)
     }
-  }, [categoryId, vendorId, showNewVendor, newVendorName, model, description, portsInfo, onCreated])
+  }, [categoryId, vendorId, showNewVendor, newVendorName, model, description, portsRJ45, portsSFP, portsSFP28, imagePath, device, onCreated])
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
       <div className="bg-surface rounded-lg shadow-xl w-[420px] max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-text-primary">自定义设备</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            {device ? '修改设备信息' : '自定义设备'}
+          </h2>
           <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary text-xs"
@@ -201,16 +274,97 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
             />
           </div>
 
-          {/* Ports info */}
+          {/* Ports info — V0.7.1 modular editing */}
           <div>
             <label className="block text-xs text-text-secondary mb-1">端口信息</label>
-            <input
-              type="text"
-              className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
-              value={portsInfo}
-              onChange={(e) => setPortsInfo(e.target.value)}
-              placeholder="如 24×GE + 4×10G SFP+"
-            />
+            <div className="space-y-2">
+              <div>
+                <label className="block text-2xs text-text-secondary mb-1">网络端口数量</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="256"
+                  className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                  value={portsRJ45}
+                  onChange={(e) => setPortsRJ45(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </div>
+              <div>
+                <label className="block text-2xs text-text-secondary mb-1">千兆光纤端口数量</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="256"
+                  className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                  value={portsSFP}
+                  onChange={(e) => setPortsSFP(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </div>
+              <div>
+                <label className="block text-2xs text-text-secondary mb-1">万兆光纤端口数量</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="256"
+                  className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                  value={portsSFP28}
+                  onChange={(e) => setPortsSFP28(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </div>
+            </div>
+            <p className="text-2xs text-text-secondary mt-1.5">
+              端口描述：{composePortsInfo(portsRJ45, portsSFP, portsSFP28) || '（未设置）'}
+            </p>
+          </div>
+
+          {/* Device image (设备真机) */}
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">设备真机（可选）</label>
+
+            {/* Image preview */}
+            <div
+              className="w-full h-24 rounded border border-dashed flex items-center justify-center mb-2 overflow-hidden"
+              style={{
+                borderColor: imagePath ? 'var(--color-device-image-border)' : 'var(--color-border)',
+                backgroundColor: 'var(--color-device-image-bg)',
+              }}
+            >
+              {imagePreviewUrl ? (
+                <img
+                  src={imagePreviewUrl}
+                  alt="设备真机预览"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-1 text-text-secondary">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                  <span className="text-2xs">点击上传设备实拍图</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="h-8 px-3 text-xs border border-select-border text-select-border rounded hover:bg-select-bg transition-colors"
+                onClick={handlePickImage}
+              >
+                {imagePath ? '更换图片' : '选择图片'}
+              </button>
+              {imagePath && (
+                <button
+                  type="button"
+                  className="text-xs text-danger hover:opacity-70"
+                  onClick={() => setImagePath('')}
+                >
+                  移除
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Error */}
@@ -234,7 +388,9 @@ export default function AddDeviceModal({ onClose, onCreated }: AddDeviceModalPro
             disabled={submitting}
             className="px-4 h-8 text-xs bg-select-border text-white rounded hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? '创建中...' : '创建设备'}
+            {submitting
+              ? (device ? '更新中...' : '创建中...')
+              : (device ? '更新设备' : '创建设备')}
           </button>
         </div>
       </div>

@@ -1,7 +1,10 @@
-import { memo, useState, useCallback, useRef, useEffect } from 'react'
-import { Handle, Position, NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
-import type { DeviceRow } from '../../types'
-import { parsePortsInfo, type ParsedPortGroup } from '../../utils/portParser'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
+import { NodeResizer, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
+import type { DeviceRow, EdgeData } from '../../types'
+import { parsePortsInfo, getPortLayout, composePortsInfo, countLayoutRows } from '../../utils/portParser'
+import InlineEdit from './InlineEdit'
+import ConnectionHandles, { type PortHandleInfo } from './ConnectionHandles'
+import DeviceIllustration, { getDeviceLayoutParams, SVG_H_DEFAULT } from './DeviceIllustration'
 
 // Category color mapping — uses CSS variables for dynamic theme switching
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: string; light: string }> = {
@@ -17,536 +20,46 @@ const DEFAULT_COLOR = { bg: 'var(--color-cat-default-bg)', border: 'var(--color-
 export interface DeviceNodeData {
   device: DeviceRow
   customName?: string
+  customImage?: string
   customCategory?: string
   customVendor?: string
   customDeviceModel?: string
-  customPorts?: string
+  customPorts?: string          // legacy — single string format
+  customPortsRJ45?: number      // V0.7.1: 网络端口数量
+  customPortsSFP?: number       // V0.7.1: 千兆光纤端口数量
+  customPortsSFP28?: number     // V0.7.1: 万兆光纤端口数量
   customColor?: string
-}
-
-// ── SVG device illustrations (dynamic width, proportional ports) ───
-
-const SVG_H = 54
-
-/** Render a row of identically-sized ports */
-function PortRow({ count, x, y, availableW, height, maxPerRow, fill, stroke, rx = 1 }: {
-  count: number; x: number; y: number; availableW: number; height: number
-  maxPerRow: number; fill: string; stroke: string; rx?: number
-}) {
-  if (count <= 0) return null
-  const actual = Math.min(count, maxPerRow)
-  const spacing = availableW / actual
-  const width = Math.max(3, spacing - 1.5)
-  return (
-    <>
-      {Array.from({ length: actual }).map((_, i) => (
-        <rect
-          key={`p-${i}`}
-          x={x + i * spacing}
-          y={y}
-          width={width}
-          height={height}
-          rx={rx}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={0.5}
-        />
-      ))}
-    </>
-  )
-}
-
-function SmallPorts({ count, startX, row1Y, row2Y, availableW, maxPerRow }: {
-  count: number; startX: number; row1Y: number; row2Y: number; availableW: number
-  maxPerRow?: number
-}) {
-  if (count <= 0) return null
-  const effectiveMaxPerRow = maxPerRow ?? (count <= 24 ? 12 : 24)
-  const row1 = Math.min(count, effectiveMaxPerRow)
-  const row2 = Math.max(0, count - effectiveMaxPerRow)
-  return (
-    <>
-      <PortRow count={row1} x={startX} y={row1Y} availableW={availableW} height={5} maxPerRow={effectiveMaxPerRow} fill="var(--color-device-port-sm-fill)" stroke="var(--color-device-port-sm-stroke)" />
-      {row2 > 0 && <PortRow count={row2} x={startX} y={row2Y} availableW={availableW} height={5} maxPerRow={effectiveMaxPerRow} fill="var(--color-device-port-sm-fill)" stroke="var(--color-device-port-sm-stroke)" />}
-    </>
-  )
-}
-
-function LargePorts({ count, startX, row1Y, row2Y, availableW, maxPerRow = 8 }: {
-  count: number; startX: number; row1Y: number; row2Y: number; availableW: number; maxPerRow?: number
-}) {
-  if (count <= 0) return null
-  const row1 = Math.min(count, maxPerRow)
-  const row2 = Math.max(0, count - maxPerRow)
-  return (
-    <>
-      <PortRow count={row1} x={startX} y={row1Y} availableW={availableW} height={6} maxPerRow={maxPerRow} fill="var(--color-device-port-lg-fill)" stroke="var(--color-device-port-lg-stroke)" rx={1.5} />
-      {row2 > 0 && <PortRow count={row2} x={startX} y={row2Y} availableW={availableW} height={6} maxPerRow={maxPerRow} fill="var(--color-device-port-lg-fill)" stroke="var(--color-device-port-lg-stroke)" rx={1.5} />}
-    </>
-  )
-}
-
-// ── Per-category SVGs (dynamic width) ──────────────────────────
-
-function SwitchSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string; svgW: number }) {
-  const groups = parsePortsInfo(portsInfo)
-  const small = groups.filter(g => g.category === 'small').reduce((s, g) => s + g.count, 0)
-  const large = groups.filter(g => g.category === 'large').reduce((s, g) => s + g.count, 0)
-
-  const margin = 4
-  const totalW = svgW - margin * 2
-  const startX = margin
-  const gap = 6
-
-  let smallZoneW: number
-  let largeStartX: number
-  let largeZoneW: number
-
-  if (small > 0 && large > 0) {
-    largeZoneW = Math.min(totalW * 0.45, Math.max(36, large * 7.5))
-    smallZoneW = totalW - largeZoneW - gap
-    largeStartX = startX + smallZoneW + gap
-  } else if (small > 0) {
-    smallZoneW = totalW
-    largeZoneW = 0
-    largeStartX = 0
-  } else {
-    smallZoneW = 0
-    largeZoneW = totalW
-    largeStartX = startX
-  }
-
-  const smallMaxPerRow = small === 16 ? 8 : (small <= 24 ? 12 : 24)
-  const smallHasRow2 = small > smallMaxPerRow
-  const largeMaxPerRow = 8
-  const largeHasRow2 = large > largeMaxPerRow
-  const needsTwoRows = smallHasRow2 || largeHasRow2
-
-  return (
-    <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
-      {/* LED indicators */}
-      {Array.from({ length: Math.min(12, Math.floor(totalW / 12)) }).map((_, i) => (
-        <rect key={`led-${i}`} x={margin + i * 12.5} y="7" width="3" height="2" rx="0.5" fill={i % 3 === 0 ? accent : 'var(--color-device-led-green)'} />
-      ))}
-      {small > 0 && (
-        <SmallPorts count={small} startX={startX} row1Y={needsTwoRows ? 11 : 15} row2Y={20}
-          availableW={smallZoneW} maxPerRow={smallMaxPerRow} />
-      )}
-      {large > 0 && (
-        <LargePorts count={large} startX={largeStartX} row1Y={needsTwoRows ? 11 : 15} row2Y={20}
-          availableW={largeZoneW} maxPerRow={largeMaxPerRow} />
-      )}
-    </svg>
-  )
-}
-
-function FirewallSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string; svgW: number }) {
-  const groups = parsePortsInfo(portsInfo)
-  const small = groups.filter(g => g.category === 'small').reduce((s, g) => s + g.count, 0)
-  const large = groups.filter(g => g.category === 'large').reduce((s, g) => s + g.count, 0)
-
-  const zoneStartX = Math.round(svgW * 0.23)
-  const zoneW = svgW - zoneStartX - 5
-  const gap = 5
-
-  let smallZoneW: number
-  let largeStartX: number
-  let largeZoneW: number
-
-  if (small > 0 && large > 0) {
-    largeZoneW = Math.min(zoneW * 0.4, Math.max(30, large * 8))
-    smallZoneW = zoneW - largeZoneW - gap
-    largeStartX = zoneStartX + smallZoneW + gap
-  } else if (small > 0) {
-    smallZoneW = zoneW
-    largeZoneW = 0
-    largeStartX = 0
-  } else {
-    smallZoneW = 0
-    largeZoneW = zoneW
-    largeStartX = zoneStartX
-  }
-
-  const smallMaxPerRow = small === 16 ? 8 : (small <= 24 ? 12 : 24)
-  const smallHasRow2 = small > smallMaxPerRow
-  const largeMaxPerRow = 8
-  const largeHasRow2 = large > largeMaxPerRow
-  const needsTwoRows = smallHasRow2 || largeHasRow2
-
-  return (
-    <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
-      <rect x="2" y="2" width="6" height="50" rx="3" fill={accent} />
-      <path d={`M${Math.round(svgW * 0.12)} 10 L${Math.round(svgW * 0.17)} 10 L${Math.round(svgW * 0.17)} 18 C${Math.round(svgW * 0.17)} 26 ${Math.round(svgW * 0.14)} 30 ${Math.round(svgW * 0.14)} 30 C${Math.round(svgW * 0.14)} 30 ${Math.round(svgW * 0.11)} 26 ${Math.round(svgW * 0.12)} 18 Z`} fill={accent} opacity="0.8" />
-      <rect x={Math.round(svgW * 0.23)} y="8" width="28" height="12" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
-      {[Math.round(svgW * 0.26), Math.round(svgW * 0.30), Math.round(svgW * 0.34), Math.round(svgW * 0.38)].map((cx) => (
-        <circle key={`st-${cx}`} cx={cx} cy="13" r="2" fill={cx === Math.round(svgW * 0.30) || cx === Math.round(svgW * 0.34) ? 'var(--color-device-led-green)' : accent} />
-      ))}
-      {small > 0 && (
-        <SmallPorts count={small} startX={zoneStartX} row1Y={needsTwoRows ? 22 : 24} row2Y={34}
-          availableW={smallZoneW} maxPerRow={smallMaxPerRow} />
-      )}
-      {large > 0 && (
-        <LargePorts count={large} startX={largeStartX} row1Y={needsTwoRows ? 22 : 24} row2Y={34}
-          availableW={largeZoneW} maxPerRow={largeMaxPerRow} />
-      )}
-    </svg>
-  )
-}
-
-function AcSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string; svgW: number }) {
-  const groups = parsePortsInfo(portsInfo)
-  const small = groups.filter(g => g.category === 'small').reduce((s, g) => s + g.count, 0)
-  const large = groups.filter(g => g.category === 'large').reduce((s, g) => s + g.count, 0)
-
-  const zoneStartX = Math.round(svgW * 0.23)
-  const zoneW = svgW - zoneStartX - 5
-  const gap = 5
-
-  let smallZoneW: number
-  let largeStartX: number
-  let largeZoneW: number
-
-  if (small > 0 && large > 0) {
-    largeZoneW = Math.min(zoneW * 0.4, Math.max(30, large * 8))
-    smallZoneW = zoneW - largeZoneW - gap
-    largeStartX = zoneStartX + smallZoneW + gap
-  } else if (small > 0) {
-    smallZoneW = zoneW
-    largeZoneW = 0
-    largeStartX = 0
-  } else {
-    smallZoneW = 0
-    largeZoneW = zoneW
-    largeStartX = zoneStartX
-  }
-
-  const smallMaxPerRow = small === 16 ? 8 : (small <= 24 ? 12 : 24)
-  const smallHasRow2 = small > smallMaxPerRow
-  const largeMaxPerRow = 8
-  const largeHasRow2 = large > largeMaxPerRow
-  const needsTwoRows = smallHasRow2 || largeHasRow2
-
-  const cx1 = Math.round(svgW * 0.15)
-  const cx2 = Math.round(svgW * 0.21)
-
-  return (
-    <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
-      <path d={`M${cx1} 12 Q${cx2} 4 ${Math.round(svgW * 0.20)} 12`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
-      <path d={`M${Math.round(svgW * 0.09)} 17 Q${Math.round(svgW * 0.14)} 7 ${Math.round(svgW * 0.22)} 17`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" opacity="0.7" />
-      <path d={`M${Math.round(svgW * 0.07)} 22 Q${Math.round(svgW * 0.12)} 10 ${Math.round(svgW * 0.24)} 22`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
-      <circle cx={Math.round(svgW * 0.14)} cy="27" r="2.5" fill={accent} opacity="0.6" />
-      {[0.23, 0.27, 0.31, 0.35].map(pct => Math.round(svgW * pct)).map((x) => (
-        <rect key={`led-${x}`} x={x} y="8" width="3" height="2" rx="0.5" fill={x === Math.round(svgW * 0.31) ? accent : 'var(--color-device-led-green)'} />
-      ))}
-      {small > 0 && (
-        <SmallPorts count={small} startX={zoneStartX} row1Y={needsTwoRows ? 14 : 18} row2Y={26}
-          availableW={smallZoneW} maxPerRow={smallMaxPerRow} />
-      )}
-      {large > 0 && (
-        <LargePorts count={large} startX={largeStartX} row1Y={needsTwoRows ? 14 : 18} row2Y={26}
-          availableW={largeZoneW} maxPerRow={largeMaxPerRow} />
-      )}
-      <rect x={zoneStartX} y={needsTwoRows ? 38 : 30} width={zoneW * 0.7} height="10" rx="2" fill={accent} opacity="0.15" />
-    </svg>
-  )
-}
-
-function ApSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string; svgW: number }) {
-  const groups = parsePortsInfo(portsInfo)
-  const small = groups.filter(g => g.category === 'small').reduce((s, g) => s + g.count, 0)
-  const large = groups.filter(g => g.category === 'large').reduce((s, g) => s + g.count, 0)
-  const total = small + large
-
-  const apBodyX = Math.round(svgW * 0.20)
-  const apBodyW = Math.round(svgW * 0.60)
-
-  function renderUplinkPorts() {
-    if (total <= 0) return null
-    const count = Math.min(total, 4)
-    const portW = 10
-    const gap = 6
-    const totalW = count * portW + (count - 1) * gap
-    const startX = apBodyX + (apBodyW - totalW) / 2
-    const portY = 42
-    return Array.from({ length: count }).map((_, i) => (
-      <rect
-        key={`ap-port-${i}`}
-        x={startX + i * (portW + gap)}
-        y={portY}
-        width={portW}
-        height={4}
-        rx={1}
-        fill="var(--color-device-port-sm-fill)"
-        stroke="var(--color-device-port-sm-stroke)"
-        strokeWidth={0.5}
-      />
-    ))
-  }
-
-  const antennaCX = Math.round(svgW * 0.50)
-
-  return (
-    <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x={apBodyX} y="8" width={apBodyW} height="38" rx="6" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
-      <rect x={antennaCX - 10} y="2" width="20" height="8" rx="2" fill="var(--color-device-body-stroke)" />
-      <path d={`M${apBodyX + 24} 26 Q${apBodyX + 18} 20 ${apBodyX + 24} 14`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
-      <path d={`M${apBodyX + 18} 28 Q${apBodyX + 10} 20 ${apBodyX + 18} 12`} fill="none" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-      <path d={`M${apBodyX + apBodyW - 24} 26 Q${apBodyX + apBodyW - 18} 20 ${apBodyX + apBodyW - 24} 14`} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
-      <path d={`M${apBodyX + apBodyW - 18} 28 Q${apBodyX + apBodyW - 10} 20 ${apBodyX + apBodyW - 18} 12`} fill="none" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-      <circle cx={antennaCX} cy="24" r="3" fill={accent} opacity="0.8" />
-      {renderUplinkPorts()}
-    </svg>
-  )
-}
-
-function ServerSvg({ accent, portsInfo, svgW }: { accent: string; portsInfo: string; svgW: number }) {
-  const groups = parsePortsInfo(portsInfo)
-  const nicTotal = groups.filter(g => g.category === 'large').reduce((s, g) => s + g.count, 0)
-    || groups.reduce((s, g) => s + g.count, 0)
-
-  const nicCount = Math.min(nicTotal, 6)
-  const nicStartX = Math.round(svgW * 0.44)
-  const nicAreaW = svgW - nicStartX - 4
-  const nicSpacing = nicCount > 0 ? nicAreaW / nicCount : 24
-  const nicWidth = Math.max(12, nicSpacing - 4)
-
-  return (
-    <svg viewBox={`0 0 ${svgW} ${SVG_H}`} width={svgW} height={SVG_H} xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width={svgW - 4} height="50" rx="3" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
-      {/* Drive bays */}
-      {[8, Math.round(svgW * 0.19)].map((x) =>
-        [8, 20, 32].map((y) => (
-          <rect key={`d-${x}-${y}`} x={x} y={y} width="18" height="10" rx="1" fill="var(--color-device-port-sm-fill)" stroke="var(--color-device-port-sm-stroke)" strokeWidth="0.5" />
-        ))
-      )}
-      <circle cx={Math.round(svgW * 0.36)} cy="13" r="2" fill="var(--color-device-led-green)" />
-      <circle cx={Math.round(svgW * 0.36)} cy="25" r="2" fill={accent} />
-      <circle cx={Math.round(svgW * 0.36)} cy="37" r="2" fill="var(--color-device-led-green)" />
-      {Array.from({ length: nicCount }).map((_, i) => (
-        <rect
-          key={`nic-${i}`}
-          x={nicStartX + i * nicSpacing}
-          y="12"
-          width={nicWidth}
-          height={8}
-          rx="1.5"
-          fill="var(--color-device-port-lg-fill)"
-          stroke="var(--color-device-port-lg-stroke)"
-          strokeWidth={0.5}
-        />
-      ))}
-      <rect x={Math.round(svgW * 0.44)} y="26" width="16" height="14" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
-      <rect x={Math.round(svgW * 0.56)} y="26" width="16" height="14" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
-      <text x={Math.round(svgW * 0.50)} y="35" fontSize="5" fill="var(--color-device-port-lg-stroke)" textAnchor="middle" fontFamily="sans-serif">PSU1</text>
-      <text x={Math.round(svgW * 0.62)} y="35" fontSize="5" fill="var(--color-device-port-lg-stroke)" textAnchor="middle" fontFamily="sans-serif">PSU2</text>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <line key={`fan-${i}`} x1={Math.round(svgW * 0.73) + i * 5} y1="30" x2={Math.round(svgW * 0.73) + i * 5} y2="38" stroke="var(--color-device-body-stroke)" strokeWidth="1" />
-      ))}
-    </svg>
-  )
-}
-
-function DeviceIllustration({ categoryName, accent, portsInfo, svgW }: { categoryName: string; accent: string; portsInfo: string; svgW: number }) {
-  switch (categoryName) {
-    case '交换机': return <SwitchSvg accent={accent} portsInfo={portsInfo} svgW={svgW} />
-    case '防火墙': return <FirewallSvg accent={accent} portsInfo={portsInfo} svgW={svgW} />
-    case '无线控制器': return <AcSvg accent={accent} portsInfo={portsInfo} svgW={svgW} />
-    case '无线接入点': return <ApSvg accent={accent} portsInfo={portsInfo} svgW={svgW} />
-    case '服务器': return <ServerSvg accent={accent} portsInfo={portsInfo} svgW={svgW} />
-    default: return <SwitchSvg accent={accent} portsInfo={portsInfo} svgW={svgW} />
-  }
-}
-
-// ── InlineEdit — double-click to edit text field ────────────────
-
-interface InlineEditProps {
-  label: string
-  value: string
-  nodeId: string
-  dataKey: string
-  placeholder?: string
-  bold?: boolean
-  className?: string
-}
-
-function InlineEdit({ label, value, placeholder, nodeId, dataKey, bold, className }: InlineEditProps) {
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(value)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const { setNodes } = useReactFlow()
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [editing])
-
-  const commit = useCallback(() => {
-    setEditing(false)
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return { ...node, data: { ...node.data, [dataKey]: editValue.trim() || undefined } }
-        }
-        return node
-      })
-    )
-  }, [nodeId, dataKey, editValue, setNodes])
-
-  const cancel = useCallback(() => {
-    setEditValue(value)
-    setEditing(false)
-  }, [value])
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') commit()
-      else if (e.key === 'Escape') cancel()
-    },
-    [commit, cancel],
-  )
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={handleKeyDown}
-        className={`text-2xs bg-surface border border-select-border rounded px-1.5 py-0.5 outline-none min-w-0 ${bold ? 'font-semibold' : ''} ${className || ''}`}
-        placeholder={placeholder}
-      />
-    )
-  }
-
-  return (
-    <div
-      className={`text-2xs truncate cursor-text hover:bg-hover-bg rounded px-1 py-0.5 -mx-1 min-w-0 ${bold ? 'font-semibold text-text-primary' : 'text-text-secondary'} ${className || ''}`}
-      onDoubleClick={() => {
-        setEditValue(value)
-        setEditing(true)
-      }}
-      title={`双击编辑${label}`}
-    >
-      {value || <span className="text-text-secondary italic">{placeholder || '双击设置...'}</span>}
-    </div>
-  )
-}
-
-// ── Dynamic ConnectionHandles — distributed evenly per side ────
-
-/**
- * Compute the number of handles per side based on total port count.
- * More ports → more handles → cables spread out across the node.
- */
-function getHandlesPerSide(totalPorts: number): { top: number; bottom: number; left: number; right: number } {
-  if (totalPorts <= 4) return { top: 2, bottom: 2, left: 2, right: 2 }
-  if (totalPorts <= 12) return { top: 4, bottom: 4, left: 3, right: 3 }
-  if (totalPorts <= 24) return { top: 6, bottom: 6, left: 4, right: 4 }
-  if (totalPorts <= 48) return { top: 10, bottom: 10, left: 6, right: 6 }
-  return { top: 16, bottom: 16, left: 8, right: 8 }
-}
-
-/** Generate evenly-spaced percentage offsets (e.g. 5 handles → ["16.7%","33.3%","50.0%","66.7%","83.3%"]) */
-function spreadOffsets(count: number): string[] {
-  return Array.from({ length: count }, (_, i) => `${((i + 1) / (count + 1)) * 100}%`)
-}
-
-interface ConnectionHandlesProps {
-  totalPorts: number
-  visible: boolean
-}
-
-function ConnectionHandles({ totalPorts, visible }: ConnectionHandlesProps) {
-  const handleStyle: React.CSSProperties = {
-    width: 10,
-    height: 10,
-    background: visible ? 'var(--color-handle-source)' : 'transparent',
-    border: visible ? '2px solid var(--color-handle-border)' : '2px solid transparent',
-    borderRadius: '50%',
-    cursor: 'crosshair',
-    zIndex: 10,
-    opacity: visible ? 0.95 : 0,
-    transition: 'opacity 0.15s, background 0.15s',
-  }
-
-  const targetHandleStyle: React.CSSProperties = {
-    ...handleStyle,
-    background: visible ? 'var(--color-handle-target)' : 'transparent',
-  }
-
-  const counts = getHandlesPerSide(totalPorts)
-
-  // Half-step helper: places target handles halfway between source handles
-  const halfStep = (count: number) => `${50 / (count + 1)}%`
-
-  const handles: React.ReactNode[] = []
-
-  // Top side — source at `off`, target at `off + halfStep`
-  const topOffsets = spreadOffsets(counts.top)
-  const topHS = halfStep(counts.top)
-  for (const [i, off] of topOffsets.entries()) {
-    handles.push(
-      <Handle key={`top-src-${i}`} type="source" position={Position.Top} id={`top-src-${i}`} style={{ ...handleStyle, left: off }} />,
-      <Handle key={`top-tgt-${i}`} type="target" position={Position.Top} id={`top-tgt-${i}`} style={{ ...targetHandleStyle, left: `calc(${off} + ${topHS})` }} />,
-    )
-  }
-
-  // Bottom side
-  const bottomOffsets = spreadOffsets(counts.bottom)
-  const bottomHS = halfStep(counts.bottom)
-  for (const [i, off] of bottomOffsets.entries()) {
-    handles.push(
-      <Handle key={`bot-src-${i}`} type="source" position={Position.Bottom} id={`bottom-src-${i}`} style={{ ...handleStyle, left: off }} />,
-      <Handle key={`bot-tgt-${i}`} type="target" position={Position.Bottom} id={`bottom-tgt-${i}`} style={{ ...targetHandleStyle, left: `calc(${off} + ${bottomHS})` }} />,
-    )
-  }
-
-  // Left side
-  const leftOffsets = spreadOffsets(counts.left)
-  const leftHS = halfStep(counts.left)
-  for (const [i, off] of leftOffsets.entries()) {
-    handles.push(
-      <Handle key={`left-src-${i}`} type="source" position={Position.Left} id={`left-src-${i}`} style={{ ...handleStyle, top: off }} />,
-      <Handle key={`left-tgt-${i}`} type="target" position={Position.Left} id={`left-tgt-${i}`} style={{ ...targetHandleStyle, top: `calc(${off} + ${leftHS})` }} />,
-    )
-  }
-
-  // Right side
-  const rightOffsets = spreadOffsets(counts.right)
-  const rightHS = halfStep(counts.right)
-  for (const [i, off] of rightOffsets.entries()) {
-    handles.push(
-      <Handle key={`right-src-${i}`} type="source" position={Position.Right} id={`right-src-${i}`} style={{ ...handleStyle, top: off }} />,
-      <Handle key={`right-tgt-${i}`} type="target" position={Position.Right} id={`right-tgt-${i}`} style={{ ...targetHandleStyle, top: `calc(${off} + ${rightHS})` }} />,
-    )
-  }
-
-  return <>{handles}</>
+  description?: string
+  ipAddress?: string
 }
 
 // ── DeviceNode ─────────────────────────────────────────────────
 
-/** Compute optimal node width based on port count */
+/** Compute optimal node width based on port count and side-by-side layout rules */
 function getNodeWidth(totalPorts: number): number {
-  // Base width for devices with few ports
+  // Side-by-side layout needs more horizontal space when copper+fiber coexist.
+  // Widths account for max-per-row rules + SIDE_GAP between left/right groups:
+  //   ≤8  → 200px (single side, up to 8 ports)
+  //   ≤16 → 320px (side-by-side: up to 8+8, or single-side 16)
+  //   ≤24 → 420px (side-by-side: up to 12+12, or single-side 24)
+  //   ≤48 → 640px (side-by-side: up to 24+24, or single-side 48)
   if (totalPorts <= 8) return 200
-  if (totalPorts <= 16) return 240
-  if (totalPorts <= 24) return 280
-  if (totalPorts <= 48) return 340
-  return 400
+  if (totalPorts <= 16) return 320
+  if (totalPorts <= 24) return 440   // V0.7.2: slightly wider for fiber at full visualWidth
+  if (totalPorts <= 48) return 640
+  return 720                          // V0.7.2: slightly wider
 }
 
 function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: NodeProps) {
   const nodeData = data as unknown as DeviceNodeData
   const { device } = nodeData
   const [isHovered, setIsHovered] = useState(false)
+
+  // V0.8.0: Access edges for used-port tracking and measure SVG offset
+  const { getEdges } = useReactFlow()
+  const nodeOuterRef = useRef<HTMLDivElement>(null)
+  const svgContainerRef = useRef<HTMLDivElement>(null)
+  const [svgOffset, setSvgOffset] = useState({ left: 24, top: 40 }) // analytical fallback
 
   const colors = CATEGORY_COLORS[device.category_name] || DEFAULT_COLOR
   const showBorder = selected || isHovered
@@ -557,7 +70,14 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const displayVendor = nodeData.customVendor || device.vendor_name
   const displayDeviceName = nodeData.customName || device.model
   const displayDeviceModel = nodeData.customDeviceModel || `${device.vendor_name} ${device.model}`
-  const displayPorts = nodeData.customPorts || device.ports_info || ''
+  // V0.7.1: Modular port counts take precedence over legacy customPorts string
+  const rj45 = nodeData.customPortsRJ45
+  const sfp = nodeData.customPortsSFP
+  const sfp28 = nodeData.customPortsSFP28
+  const hasModularPorts = rj45 !== undefined || sfp !== undefined || sfp28 !== undefined
+  const displayPorts = hasModularPorts
+    ? composePortsInfo(rj45 ?? 0, sfp ?? 0, sfp28 ?? 0)
+    : (nodeData.customPorts || device.ports_info || '')
 
   // Compute total port count for handle distribution & node sizing
   const portGroups = parsePortsInfo(displayPorts)
@@ -570,15 +90,77 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const nodeHeight = rfHeight && rfHeight > 0 ? rfHeight : undefined
   // SVG width: node body minus horizontal padding (~24px)
   const svgW = Math.max(140, nodeWidth - 24)
+  // SVG height: adapt to port layout row count. Reserved: header(~30px) + info(~60px) + padding(~12px)
+  const SVG_H_MIN = 100
+  const layoutRows = countLayoutRows(portGroups)
+  const dynamicSvgH = layoutRows > 0
+    ? Math.max(SVG_H_MIN, layoutRows * 28 + 20)  // V0.7.3: 28px per row (up to 23px height + 5px gap) for fiber port headroom
+    : SVG_H_DEFAULT
+  const svgH = nodeHeight
+    ? Math.max(SVG_H_MIN, nodeHeight - 102)
+    : dynamicSvgH
+
+  // ── V0.8.0: Compute port layout and used-port tracking ──────────
+  const layoutParams = getDeviceLayoutParams(device.category_name, svgW, svgH)
+  const portLayoutAvailableW = layoutParams.portPanelSvgW - 24
+  const portLayoutAvailableH = Math.max(40, layoutParams.bodyH - 12)
+  const portLayout = portGroups.length > 0
+    ? getPortLayout(portGroups, portLayoutAvailableW, portLayoutAvailableH)
+    : { ports: [], rows: 0 }
+
+  // Build per-port handle info with edge-tracking
+  const allEdges = getEdges()
+  const portHandleInfos: PortHandleInfo[] = portLayout.ports.map(port => {
+    const portLabel = `${port.typeLabel}${port.portIndex}`
+    // Port center in SVG viewBox coordinates
+    const svgCenterX = layoutParams.panelX + port.x + port.width / 2
+    const svgCenterY = layoutParams.portPanelBodyY + 6 + port.y + port.height / 2
+    // Check if this port is already referenced by any edge connected to this node
+    const isUsed = allEdges.some(e => {
+      const ed = e.data as EdgeData | undefined
+      return (e.source === id && ed?.sourcePort === portLabel) ||
+             (e.target === id && ed?.targetPort === portLabel)
+    })
+    return { portLabel, svgCenterX, svgCenterY, isUsed }
+  })
+
+  // Build used-port set for SVG LED highlighting
+  const usedPorts = new Set(portHandleInfos.filter(p => p.isUsed).map(p => p.portLabel))
+
+  // V0.8.3: Measure the SVG element itself (not its container) so that
+  // padding (px-2) and centering (flex justify-center) are automatically
+  // accounted for in the offset. This keeps handles locked to port positions
+  // when the node is resized.
+  useLayoutEffect(() => {
+    if (!svgContainerRef.current || !nodeOuterRef.current) return
+    const svgEl = svgContainerRef.current.querySelector('svg')
+    if (!svgEl) return
+    const nodeRect = nodeOuterRef.current.getBoundingClientRect()
+    const svgRect = svgEl.getBoundingClientRect()
+    setSvgOffset({
+      left: svgRect.left - nodeRect.left,
+      top: svgRect.top - nodeRect.top,
+    })
+  }, [nodeWidth, nodeHeight])
+
+  // V0.8.4: After svgOffset updates and handles re-render, tell React Flow
+  // to re-measure handle positions via getBoundingClientRect (getHandleBounds).
+  // Without this, React Flow's internal handleBounds are stale, causing edge
+  // endpoints to be offset from actual port centers.
+  const updateNodeInternals = useUpdateNodeInternals()
+  useLayoutEffect(() => {
+    updateNodeInternals(id)
+  }, [svgOffset, id, updateNodeInternals])
 
   return (
     <div
+      ref={nodeOuterRef}
       className="relative rounded-lg shadow-sm border-2 transition-colors transition-shadow duration-150 select-none"
       style={{
         width: nodeWidth,
         height: nodeHeight,
         minWidth: 160,
-        minHeight: 120,
+        minHeight: 220,
         backgroundColor: 'var(--color-surface)',
         borderColor: showBorder ? (selected ? 'var(--color-edge-selected)' : colors.border) : 'transparent',
         boxShadow: selected
@@ -595,7 +177,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         isVisible={selected}
         minWidth={160}
         minHeight={120}
-        maxWidth={600}
+        maxWidth={800}
         keepAspectRatio={false}
         color="var(--color-resizer)"
         lineStyle={{ opacity: 0.8 }}
@@ -609,8 +191,12 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         }}
       />
 
-      {/* Connection handles — dynamically distributed */}
-      <ConnectionHandles totalPorts={totalPorts} visible={showHandles} />
+      {/* Connection handles — V0.8.0: port-level handles on each port */}
+      <ConnectionHandles
+        portHandleInfos={portHandleInfos}
+        visible={showHandles}
+        svgOffset={svgOffset}
+      />
 
       {/* Header bar */}
       <div
@@ -636,9 +222,9 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         </div>
       </div>
 
-      {/* SVG illustration */}
-      <div className="px-2 py-2 flex justify-center bg-surface">
-        <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} svgW={svgW} />
+      {/* Device illustration — always SVG, device image is shown in PropertyPanel only */}
+      <div ref={svgContainerRef} className="px-2 py-2 flex justify-center bg-surface">
+        <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} ports={portLayout.ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
       </div>
 
       {/* Device info */}
@@ -656,13 +242,13 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
           nodeId={id}
           dataKey="customDeviceModel"
         />
-        <InlineEdit
-          label="设备端口"
-          value={displayPorts}
-          nodeId={id}
-          dataKey="customPorts"
-          placeholder="端口信息..."
-        />
+        {/* 设备端口 — read-only display, edit via PropertyPanel */}
+        <div
+          className="text-2xs truncate rounded px-1 py-0.5 -mx-1 min-w-0 text-text-secondary"
+          title="在属性面板中编辑端口数量"
+        >
+          {displayPorts || <span className="text-text-secondary italic">无端口信息</span>}
+        </div>
       </div>
     </div>
   )

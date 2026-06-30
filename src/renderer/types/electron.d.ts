@@ -45,8 +45,22 @@ export interface ElectronAPI {
     image_path?: string
   }) => Promise<{ success: boolean; id?: number }>
   deleteDevice: (id: number) => Promise<{ success: boolean }>
+  updateDevice: (id: number, updates: {
+    category_id?: number
+    vendor_id?: number
+    model?: string
+    description?: string
+    ports_info?: string
+    image_path?: string | null
+  }) => Promise<{ success: boolean; error?: string }>
   getVendors: () => Promise<VendorRow[]>
   addVendor: (name: string) => Promise<{ success: boolean; id?: number; error?: string }>
+
+  // Device image management
+  pickDeviceImage: () => Promise<{ success: boolean; originalName?: string; storedPath?: string; canceled?: boolean; error?: string }>
+  readDeviceImage: (basename: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+  deleteDeviceImage: (basename: string) => Promise<{ success: boolean; error?: string }>
+  updateDeviceImage: (id: number, imagePath: string | null) => Promise<{ success: boolean; error?: string }>
 }
 
 declare global {

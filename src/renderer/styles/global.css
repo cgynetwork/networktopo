@@ -47,6 +47,14 @@ html, body, #root {
   display: none !important;
 }
 
+/* V0.8.1: Edges and edge labels render above nodes so cables are visible */
+.react-flow__edges {
+  z-index: 1000 !important;
+}
+.react-flow__edgelabel-renderer {
+  z-index: 1001 !important;
+}
+
 /* React Flow MiniMap theme-aware */
 .react-flow__minimap {
   background-color: var(--color-sidebar) !important;

@@ -98,6 +98,29 @@ export function registerDeviceHandlers(): void {
     return { success: true }
   })
 
+  // Update device fields (general-purpose)
+  ipcMain.handle('db:updateDevice', (_event, id: number, updates: Record<string, unknown>) => {
+    const db = getDatabase()
+    const allowed = ['category_id', 'vendor_id', 'model', 'description', 'ports_info', 'image_path']
+    const setClauses: string[] = []
+    const values: unknown[] = []
+
+    for (const key of allowed) {
+      if (key in updates) {
+        setClauses.push(`${key} = ?`)
+        values.push(updates[key])
+      }
+    }
+
+    if (setClauses.length === 0) return { success: false, error: 'No fields to update' }
+
+    setClauses.push("updated_at = datetime('now')")
+    values.push(id)
+
+    db.prepare(`UPDATE device_models SET ${setClauses.join(', ')} WHERE id = ?`).run(...values)
+    return { success: true }
+  })
+
   // Get all vendors
   ipcMain.handle('db:getVendors', () => {
     const db = getDatabase()
@@ -115,5 +138,14 @@ export function registerDeviceHandlers(): void {
     } catch {
       return { success: false, error: '厂商已存在' }
     }
+  })
+
+  // Update device image path
+  ipcMain.handle('db:updateDeviceImage', (_event, id: number, imagePath: string | null) => {
+    const db = getDatabase()
+    db.prepare(
+      "UPDATE device_models SET image_path = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(imagePath, id)
+    return { success: true }
   })
 }

@@ -3,7 +3,7 @@ import type { Node, Edge } from '@xyflow/react'
 import type { DeviceNodeData } from '../nodes/DeviceNode'
 import type { EdgeData, PathStyle } from '../../types'
 import { getDeviceFromNode, getNodeData } from '../../types'
-import { getDefaultPortLabel, listAllPorts } from '../../utils/portParser'
+import { getDefaultPortLabel, listAllPorts, composePortsInfo, parseModularPorts } from '../../utils/portParser'
 
 interface PropertyPanelProps {
   selectedNode: Node | null
@@ -29,6 +29,7 @@ export default function PropertyPanel({
   const [customName, setCustomName] = useState('')
   const [ipAddress, setIpAddress] = useState('')
   const [description, setDescription] = useState('')
+  const [dbDescription, setDbDescription] = useState('')
   const [connType, setConnType] = useState<EdgeData['connectionType']>('ethernet')
   const [animStyle, setAnimStyle] = useState<EdgeData['animationStyle']>('none')
   const [direction, setDirection] = useState<EdgeData['direction']>('forward')
@@ -45,20 +46,42 @@ export default function PropertyPanel({
   const [customVendor, setCustomVendor] = useState('')
   const [customDeviceModel, setCustomDeviceModel] = useState('')
   const [customPorts, setCustomPorts] = useState('')
+  // V0.7.1: Modular port counts
+  const [customPortsRJ45, setCustomPortsRJ45] = useState<number>(0)
+  const [customPortsSFP, setCustomPortsSFP] = useState<number>(0)
+  const [customPortsSFP28, setCustomPortsSFP28] = useState<number>(0)
   const [customColor, setCustomColor] = useState('')
+  const [customImage, setCustomImage] = useState('')
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const [imageLoading, setImageLoading] = useState(false)
   const [elbowOffset, setElbowOffset] = useState(50)
 
   // Sync local state when selected node changes
   useEffect(() => {
     if (nodeData) {
       setCustomName(nodeData.customName || '')
-      setIpAddress((selectedNode?.data?.ipAddress as string) || '')
-      setDescription((selectedNode?.data?.description as string) || '')
+      setIpAddress(nodeData.ipAddress || '')
+      setDescription(nodeData.description || '')
+      setDbDescription(nodeData.device.description || '')
       setCustomCategory(nodeData.customCategory || '')
       setCustomVendor(nodeData.customVendor || '')
       setCustomDeviceModel(nodeData.customDeviceModel || '')
       setCustomPorts(nodeData.customPorts || '')
+      // V0.7.1: Initialize modular port counts from node data or device template
+      if (nodeData.customPortsRJ45 !== undefined || nodeData.customPortsSFP !== undefined || nodeData.customPortsSFP28 !== undefined) {
+        setCustomPortsRJ45(nodeData.customPortsRJ45 ?? 0)
+        setCustomPortsSFP(nodeData.customPortsSFP ?? 0)
+        setCustomPortsSFP28(nodeData.customPortsSFP28 ?? 0)
+      } else {
+        // Parse from legacy string or device template
+        const portsSource = nodeData.customPorts || nodeData.device.ports_info || ''
+        const parsed = parseModularPorts(portsSource)
+        setCustomPortsRJ45(parsed.rj45)
+        setCustomPortsSFP(parsed.sfp)
+        setCustomPortsSFP28(parsed.tenG)
+      }
       setCustomColor(nodeData.customColor || '')
+      setCustomImage(nodeData.customImage || '')
     }
   }, [selectedNode?.id, nodeData]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -80,6 +103,44 @@ export default function PropertyPanel({
       setElbowOffset(edgeData.elbowOffset ?? 50)
     }
   }, [selectedEdge?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load image preview when customImage changes
+  useEffect(() => {
+    if (customImage) {
+      setImageLoading(true)
+      window.electronAPI
+        .readDeviceImage(customImage)
+        .then((result) => {
+          if (result.success && result.dataUrl) {
+            setImagePreviewUrl(result.dataUrl)
+          } else {
+            setImagePreviewUrl(null)
+          }
+        })
+        .catch(() => setImagePreviewUrl(null))
+        .finally(() => setImageLoading(false))
+    } else {
+      setImagePreviewUrl(null)
+    }
+  }, [customImage])
+
+  // ── Device image handlers ─────────────────────────────────
+  const handleUploadImage = useCallback(async () => {
+    if (!selectedNode) return
+    const result = await window.electronAPI.pickDeviceImage()
+    if (result.success && result.storedPath) {
+      const basename = result.storedPath
+      setCustomImage(basename)
+      onUpdateNodeData?.(selectedNode.id, { customImage: basename })
+    }
+  }, [selectedNode, onUpdateNodeData])
+
+  const handleRemoveImage = useCallback(() => {
+    if (!selectedNode) return
+    setCustomImage('')
+    setImagePreviewUrl(null)
+    onUpdateNodeData?.(selectedNode.id, { customImage: undefined })
+  }, [selectedNode, onUpdateNodeData])
 
   const handleNameChange = useCallback(() => {
     if (selectedNode && onUpdateNodeData) {
@@ -123,11 +184,18 @@ export default function PropertyPanel({
     }
   }, [selectedNode, customDeviceModel, onUpdateNodeData])
 
-  const handleCustomPortsChange = useCallback(() => {
+  // V0.7.1: Save all three modular port counts atomically
+  const handlePortCountsChange = useCallback(() => {
     if (selectedNode && onUpdateNodeData) {
-      onUpdateNodeData(selectedNode.id, { customPorts: customPorts || undefined })
+      onUpdateNodeData(selectedNode.id, {
+        customPortsRJ45: customPortsRJ45 > 0 ? customPortsRJ45 : undefined,
+        customPortsSFP: customPortsSFP > 0 ? customPortsSFP : undefined,
+        customPortsSFP28: customPortsSFP28 > 0 ? customPortsSFP28 : undefined,
+        // Clear legacy field when modular counts are in use
+        customPorts: undefined,
+      })
     }
-  }, [selectedNode, customPorts, onUpdateNodeData])
+  }, [selectedNode, customPortsRJ45, customPortsSFP, customPortsSFP28, onUpdateNodeData])
 
   // ── Port auto-assign ──────────────────────────────────────
   const handleAutoSourcePort = useCallback(() => {
@@ -276,18 +344,116 @@ export default function PropertyPanel({
               />
             </div>
 
-            {/* 设备端口 */}
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">设备端口</label>
-              <input
-                type="text"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
-                value={customPorts}
-                onChange={(e) => setCustomPorts(e.target.value)}
-                onBlur={handleCustomPortsChange}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleCustomPortsChange() }}
-                placeholder={nodeData.device.ports_info || '端口信息...'}
-              />
+            {/* 设备端口 — V0.7.1 modular editing */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🔌 设备端口
+              </label>
+              <div className="space-y-2">
+                {/* 网络端口数量 */}
+                <div>
+                  <label className="block text-2xs text-text-secondary mb-1">网络端口数量</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="256"
+                    className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                    value={customPortsRJ45}
+                    onChange={(e) => setCustomPortsRJ45(Math.max(0, parseInt(e.target.value) || 0))}
+                    onBlur={handlePortCountsChange}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handlePortCountsChange() }}
+                  />
+                </div>
+                {/* 千兆光纤端口数量 */}
+                <div>
+                  <label className="block text-2xs text-text-secondary mb-1">千兆光纤端口数量</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="256"
+                    className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                    value={customPortsSFP}
+                    onChange={(e) => setCustomPortsSFP(Math.max(0, parseInt(e.target.value) || 0))}
+                    onBlur={handlePortCountsChange}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handlePortCountsChange() }}
+                  />
+                </div>
+                {/* 万兆光纤端口数量 */}
+                <div>
+                  <label className="block text-2xs text-text-secondary mb-1">万兆光纤端口数量</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="256"
+                    className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                    value={customPortsSFP28}
+                    onChange={(e) => setCustomPortsSFP28(Math.max(0, parseInt(e.target.value) || 0))}
+                    onBlur={handlePortCountsChange}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handlePortCountsChange() }}
+                  />
+                </div>
+              </div>
+              {/* Live preview of composed ports_info */}
+              <p className="text-2xs text-text-secondary mt-1.5">
+                端口描述：{composePortsInfo(customPortsRJ45, customPortsSFP, customPortsSFP28) || '（未设置）'}
+              </p>
+            </div>
+
+            {/* 设备真机 — V0.7.0 */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🖼️ 设备真机
+              </label>
+
+              {/* Image preview */}
+              <div
+                className="w-full h-24 rounded border border-dashed flex items-center justify-center mb-2 overflow-hidden"
+                style={{
+                  borderColor: customImage ? 'var(--color-device-image-border)' : 'var(--color-border)',
+                  backgroundColor: 'var(--color-device-image-bg)',
+                }}
+              >
+                {imageLoading ? (
+                  <div className="flex flex-col items-center gap-1 text-text-secondary">
+                    <div className="w-5 h-5 border-2 border-select-border border-t-transparent rounded-full animate-spin" />
+                    <span className="text-2xs">加载中...</span>
+                  </div>
+                ) : imagePreviewUrl ? (
+                  <img
+                    src={imagePreviewUrl}
+                    alt="设备图片预览"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-text-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    <span className="text-2xs">点击上传设备实拍图</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 h-7 text-xs rounded border border-select-border text-select-border hover:bg-select-bg transition-colors"
+                  onClick={handleUploadImage}
+                >
+                  {customImage ? '更换图片' : '上传图片'}
+                </button>
+                {customImage && (
+                  <button
+                    className="h-7 px-3 text-xs rounded border border-danger text-danger hover:bg-danger-bg transition-colors"
+                    onClick={handleRemoveImage}
+                  >
+                    移除
+                  </button>
+                )}
+              </div>
+              <p className="text-2xs text-text-secondary mt-1.5">支持 PNG / JPG / WebP 格式</p>
             </div>
 
             {/* IP Address */}
@@ -316,13 +482,29 @@ export default function PropertyPanel({
               />
             </div>
 
-            {/* Device description from database (read-only reference) */}
-            {nodeData.device.description && (
+            {/* Device description from database (editable) */}
+            {nodeData.device.description !== undefined && (
               <div>
                 <label className="block text-xs text-text-secondary mb-1">设备说明（数据库）</label>
-                <p className="text-xs text-text-secondary bg-hover-bg px-2 py-1.5 rounded leading-relaxed">
-                  {nodeData.device.description}
-                </p>
+                <textarea
+                  className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
+                  value={dbDescription}
+                  onChange={(e) => setDbDescription(e.target.value)}
+                  onBlur={() => {
+                    if (dbDescription !== nodeData.device.description) {
+                      const updatedDevice = { ...nodeData.device, description: dbDescription }
+                      onUpdateNodeData?.(selectedNode!.id, { device: updatedDevice })
+                      window.electronAPI.updateDeviceDescription(nodeData.device.id, dbDescription).catch(console.error)
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      ;(e.target as HTMLTextAreaElement).blur()
+                    }
+                  }}
+                  placeholder="数据库中的设备说明..."
+                />
               </div>
             )}
           </div>
@@ -393,7 +575,7 @@ export default function PropertyPanel({
                 <input
                   type="range"
                   min="10"
-                  max="250"
+                  max="400"
                   step="5"
                   value={elbowOffset}
                   onChange={(e) => {
@@ -404,7 +586,7 @@ export default function PropertyPanel({
                   className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
-                  <span>近(10px)</span><span>远(250px)</span>
+                  <span>近(10px)</span><span>远(400px)</span>
                 </div>
                 {elbowOffset !== 50 && (
                   <button
@@ -647,6 +829,12 @@ export default function PropertyPanel({
                 const srcPortsInfo = getNodeData(srcNode!)?.customPorts || srcDevice?.ports_info || ''
                 const portList = listAllPorts(srcPortsInfo)
                 if (portList.length === 0) return null
+                // V0.8.0: Mark ports already used by other edges on this node as unavailable
+                const usedSourcePorts = new Set(
+                  edges?.filter(e => e.id !== selectedEdge!.id && e.source === selectedEdge!.source)
+                    .map(e => (e.data as EdgeData | undefined)?.sourcePort)
+                    .filter(Boolean) ?? []
+                )
                 return (
                   <select
                     className="w-full h-7 px-1.5 mt-1 text-2xs rounded border border-border bg-surface text-text-secondary focus:outline-none focus:border-select-border"
@@ -659,7 +847,9 @@ export default function PropertyPanel({
                   >
                     <option value="">— 选择端口 —</option>
                     {portList.map((p) => (
-                      <option key={p} value={p}>{p}</option>
+                      <option key={p} value={p} disabled={usedSourcePorts.has(p)}>
+                        {p}{usedSourcePorts.has(p) ? ' (已使用)' : ''}
+                      </option>
                     ))}
                   </select>
                 )
@@ -694,6 +884,12 @@ export default function PropertyPanel({
                 const tgtPortsInfo = getNodeData(tgtNode!)?.customPorts || tgtDevice?.ports_info || ''
                 const portList = listAllPorts(tgtPortsInfo)
                 if (portList.length === 0) return null
+                // V0.8.0: Mark ports already used by other edges on this node as unavailable
+                const usedTargetPorts = new Set(
+                  edges?.filter(e => e.id !== selectedEdge!.id && e.target === selectedEdge!.target)
+                    .map(e => (e.data as EdgeData | undefined)?.targetPort)
+                    .filter(Boolean) ?? []
+                )
                 return (
                   <select
                     className="w-full h-7 px-1.5 mt-1 text-2xs rounded border border-border bg-surface text-text-secondary focus:outline-none focus:border-select-border"
@@ -706,7 +902,9 @@ export default function PropertyPanel({
                   >
                     <option value="">— 选择端口 —</option>
                     {portList.map((p) => (
-                      <option key={p} value={p}>{p}</option>
+                      <option key={p} value={p} disabled={usedTargetPorts.has(p)}>
+                        {p}{usedTargetPorts.has(p) ? ' (已使用)' : ''}
+                      </option>
                     ))}
                   </select>
                 )

@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { CategoryRow, DeviceRow } from '../../types'
 import AddDeviceModal from './AddDeviceModal'
+import SidebarContextMenu from '../SidebarContextMenu'
+import type { SidebarContextMenuState } from '../SidebarContextMenu'
+import ConfirmDialog from '../ConfirmDialog/ConfirmDialog'
 
 // Icon mapping per category
 const CATEGORY_ICONS: Record<string, string> = {
@@ -24,6 +27,9 @@ export default function Sidebar(_props: SidebarProps) {
   const [loading, setLoading] = useState(true)
   const [hoveredDevice, setHoveredDevice] = useState<DeviceRow | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [contextMenu, setContextMenu] = useState<SidebarContextMenuState | null>(null)
+  const [editingDevice, setEditingDevice] = useState<DeviceRow | null>(null)
+  const [deletingDevice, setDeletingDevice] = useState<DeviceRow | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load devices from database
@@ -84,6 +90,24 @@ export default function Sidebar(_props: SidebarProps) {
       return next
     })
   }, [])
+
+  // Right-click context menu
+  const handleDeviceContextMenu = useCallback((e: React.MouseEvent, device: DeviceRow) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, device })
+  }, [])
+
+  // Delete device
+  const handleDeleteDevice = useCallback(async () => {
+    if (!deletingDevice) return
+    try {
+      await window.electronAPI.deleteDevice(deletingDevice.id)
+      await loadDevices()
+    } catch (err) {
+      console.error('Failed to delete device:', err)
+    } finally {
+      setDeletingDevice(null)
+    }
+  }, [deletingDevice, loadDevices])
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,6 +170,7 @@ export default function Sidebar(_props: SidebarProps) {
               key={device.id}
               device={device}
               onHover={setHoveredDevice}
+              onContextMenu={handleDeviceContextMenu}
             />
           ))}
         </div>
@@ -211,6 +236,7 @@ export default function Sidebar(_props: SidebarProps) {
                           key={device.id}
                           device={device}
                           onHover={setHoveredDevice}
+                          onContextMenu={handleDeviceContextMenu}
                         />
                       ))
                     )}
@@ -224,7 +250,7 @@ export default function Sidebar(_props: SidebarProps) {
       {/* Footer */}
       <div className="p-3 border-t border-border space-y-2">
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setEditingDevice(null); setShowAddModal(true); }}
           className="w-full h-8 text-xs font-medium border border-dashed border-select-border text-select-border rounded hover:bg-select-bg transition-colors"
         >
           ＋ 自定义设备
@@ -237,9 +263,11 @@ export default function Sidebar(_props: SidebarProps) {
       {/* Custom device modal */}
       {showAddModal && (
         <AddDeviceModal
-          onClose={() => setShowAddModal(false)}
+          device={editingDevice}
+          onClose={() => { setShowAddModal(false); setEditingDevice(null); }}
           onCreated={() => {
             setShowAddModal(false)
+            setEditingDevice(null)
             loadDevices()
           }}
         />
@@ -249,6 +277,37 @@ export default function Sidebar(_props: SidebarProps) {
       {hoveredDevice && (
         <DeviceTooltip device={hoveredDevice} />
       )}
+
+      {/* Sidebar device context menu */}
+      {contextMenu && (
+        <SidebarContextMenu
+          contextMenu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onEdit={() => {
+            setEditingDevice(contextMenu.device)
+            setShowAddModal(true)
+            setContextMenu(null)
+          }}
+          onDelete={() => {
+            setDeletingDevice(contextMenu.device)
+            setContextMenu(null)
+          }}
+        />
+      )}
+
+      {/* Delete device confirmation */}
+      <ConfirmDialog
+        open={deletingDevice !== null}
+        title="确认删除设备？"
+        message={deletingDevice ? (
+          <>即将从数据库中永久删除 <strong>{deletingDevice.vendor_name} {deletingDevice.model}</strong>。此操作不可撤销。</>
+        ) : ''}
+        confirmLabel="删除"
+        cancelLabel="取消"
+        variant="danger"
+        onConfirm={handleDeleteDevice}
+        onCancel={() => setDeletingDevice(null)}
+      />
     </div>
   )
 }
@@ -257,9 +316,11 @@ export default function Sidebar(_props: SidebarProps) {
 function DeviceListItem({
   device,
   onHover,
+  onContextMenu,
 }: {
   device: DeviceRow
   onHover: (d: DeviceRow | null) => void
+  onContextMenu: (e: React.MouseEvent, device: DeviceRow) => void
 }) {
   return (
     <div
@@ -267,6 +328,10 @@ function DeviceListItem({
       draggable
       onMouseEnter={() => onHover(device)}
       onMouseLeave={() => onHover(null)}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu(e, device)
+      }}
       onDragStart={(e) => {
         e.dataTransfer.setData('application/topo-device', JSON.stringify(device))
         e.dataTransfer.effectAllowed = 'copy'
