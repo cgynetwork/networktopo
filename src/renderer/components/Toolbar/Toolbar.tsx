@@ -32,6 +32,20 @@ interface ToolbarProps {
   onAlignBottom?: () => void
   onDistributeHorizontal?: () => void
   onDistributeVertical?: () => void
+  showGrid?: boolean
+  onToggleGrid?: () => void
+  snapEnabled?: boolean
+  onToggleSnap?: () => void
+  onOpenSearch?: () => void
+  onZoomIn?: () => void
+  onZoomOut?: () => void
+  onFitView?: () => void
+  viewportZoom?: number
+  templateList?: { name: string; file: string }[]
+  onSaveAsTemplate?: () => void
+  onLoadTemplate?: (name: string) => void
+  onDeleteTemplate?: (name: string) => void
+  onRefreshTemplateList?: () => void
 }
 
 export default function Toolbar({
@@ -63,8 +77,23 @@ export default function Toolbar({
   onAlignBottom,
   onDistributeHorizontal,
   onDistributeVertical,
+  showGrid,
+  onToggleGrid,
+  snapEnabled,
+  onToggleSnap,
+  onOpenSearch,
+  onZoomIn,
+  onZoomOut,
+  onFitView,
+  viewportZoom,
+  templateList,
+  onSaveAsTemplate,
+  onLoadTemplate,
+  onDeleteTemplate,
+  onRefreshTemplateList,
 }: ToolbarProps) {
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false)
   const [showStatsTooltip, setShowStatsTooltip] = useState(false)
 
   // ── V0.9.2: Topology asset statistics ─────────────────────────
@@ -191,7 +220,7 @@ export default function Toolbar({
           {isDirty && <span className="text-amber-500 mr-0.5">•</span>}
           Topo
         </span>
-        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V0.10.0</span>
+        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V0.11.0</span>
         {/* V0.9.2: Asset statistics with hover tooltip */}
         <div
           className="relative"
@@ -252,6 +281,69 @@ export default function Toolbar({
 
       {/* Right section */}
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' }}>
+        {/* Grid toggle */}
+        <button
+          onClick={onToggleGrid}
+          className={`w-8 h-8 flex items-center justify-center rounded border transition-colors ${
+            showGrid
+              ? 'border-accent text-accent bg-accent-bg'
+              : 'border-border text-text-secondary hover:bg-hover-bg'
+          }`}
+          title={showGrid ? '隐藏网格' : '显示网格'}
+        >
+          ⊞
+        </button>
+        {/* Snap toggle */}
+        <button
+          onClick={onToggleSnap}
+          className={`w-8 h-8 flex items-center justify-center rounded border transition-colors ${
+            snapEnabled
+              ? 'border-accent text-accent bg-accent-bg'
+              : 'border-border text-text-secondary hover:bg-hover-bg'
+          }`}
+          title={snapEnabled ? '关闭吸附' : '开启吸附'}
+        >
+          ⊡
+        </button>
+        {/* Search */}
+        <button
+          onClick={onOpenSearch}
+          className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary"
+          title="搜索设备 (Ctrl+F)"
+        >
+          🔍
+        </button>
+        <div className="w-px h-5 bg-border mx-0.5" />
+        {/* Zoom controls */}
+        <button
+          onClick={onZoomOut}
+          className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-sm"
+          title="缩小 (Ctrl+-)"
+        >
+          −
+        </button>
+        <span
+          className="text-xs text-text-secondary min-w-[42px] text-center cursor-default"
+          title="当前缩放比例"
+        >
+          {viewportZoom != null ? `${Math.round(viewportZoom * 100)}%` : '100%'}
+        </span>
+        <button
+          onClick={onZoomIn}
+          className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-sm"
+          title="放大 (Ctrl+=)"
+        >
+          +
+        </button>
+        <button
+          onClick={onFitView}
+          className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-xs"
+          title="适应视窗 (Ctrl+0)"
+        >
+          ⊡
+        </button>
+        <div className="w-px h-5 bg-border mx-0.5" />
+
         <button
           onClick={onToggleTheme}
           className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary"
@@ -282,6 +374,53 @@ export default function Toolbar({
         >
           打开
         </button>
+
+        {/* Template dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => { setShowTemplateMenu(!showTemplateMenu); onRefreshTemplateList?.() }}
+            onBlur={() => setTimeout(() => setShowTemplateMenu(false), 200)}
+            className="px-3 py-1.5 text-xs font-medium rounded bg-surface border border-border hover:bg-hover-bg transition-colors text-text-primary"
+            title="拓扑模板"
+          >
+            模板 ▾
+          </button>
+          {showTemplateMenu && (
+            <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-lg z-50 py-1 min-w-[180px]">
+              <button
+                onMouseDown={() => { onSaveAsTemplate?.(); setShowTemplateMenu(false) }}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary"
+                disabled={nodes.length === 0}
+              >
+                💾 保存为模板...
+              </button>
+              {templateList && templateList.length > 0 && (
+                <>
+                  <div className="border-t border-border my-0.5" />
+                  <div className="px-3 py-1 text-2xs text-text-secondary font-medium">加载模板</div>
+                  {templateList.map(t => (
+                    <div key={t.name} className="flex items-center group">
+                      <button
+                        onMouseDown={() => { onLoadTemplate?.(t.name); setShowTemplateMenu(false) }}
+                        className="flex-1 text-left px-3 py-1 text-xs hover:bg-hover-bg transition-colors text-text-primary truncate"
+                        title={t.name}
+                      >
+                        📐 {t.name}
+                      </button>
+                      <button
+                        onMouseDown={() => { onDeleteTemplate?.(t.name); setShowTemplateMenu(false) }}
+                        className="px-2 py-1 text-2xs text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100"
+                        title="删除模板"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Export dropdown */}
         <div className="relative">

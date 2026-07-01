@@ -63,6 +63,13 @@ export default function App() {
   const selectedCount = useMemo(() => nodes.filter(n => n.selected).length, [nodes])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [panelCollapsed, setPanelCollapsed] = useState(true)
+  const [showGrid, setShowGrid] = useState(true)
+  const [snapEnabled, setSnapEnabled] = useState(true)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [templateList, setTemplateList] = useState<{ name: string; file: string }[]>([])
+  const [viewportZoom, setViewportZoom] = useState(1)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const nodesRef = useRef(nodes)
@@ -72,6 +79,40 @@ export default function App() {
   const { theme, toggleTheme } = useTheme()
   const toast = useToast()
 
+  // ── Canvas search ────────────────────────────────────────
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const q = searchQuery.toLowerCase()
+    return nodes.filter(n => {
+      const data = getNodeData(n)
+      if (!data) return false
+      return (
+        data.customName?.toLowerCase().includes(q) ||
+        data.device?.model?.toLowerCase().includes(q) ||
+        data.device?.vendor_name?.toLowerCase().includes(q) ||
+        data.device?.category_name?.toLowerCase().includes(q) ||
+        data.description?.toLowerCase().includes(q) ||
+        data.ipAddress?.toLowerCase().includes(q) ||
+        data.businessNote?.toLowerCase().includes(q)
+      )
+    })
+  }, [nodes, searchQuery])
+
+  const handleSearchSelect = useCallback((nodeId: string) => {
+    if (!rfInstance) return
+    const node = nodesRef.current.find(n => n.id === nodeId)
+    if (!node) return
+    // Clear all selections, select this node, and zoom to it
+    setNodes((nds) => nds.map(n => ({ ...n, selected: n.id === nodeId })))
+    setSelectedNode(node)
+    setSelectedEdge(null)
+    setPanelCollapsed(false)
+    setSearchOpen(false)
+    setSearchQuery('')
+    // Zoom to node with animation
+    rfInstance.fitView({ nodes: [{ id: nodeId }], duration: 300, padding: 0.4 })
+  }, [rfInstance, setNodes])
+
   // ── Confirmation dialogs ──────────────────────────────────
   const [showNewConfirm, setShowNewConfirm] = useState(false)
   const [showOpenConfirm, setShowOpenConfirm] = useState(false)
@@ -79,6 +120,11 @@ export default function App() {
 
   // ── Context menu state (unified: edge + node) ────────────
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+
+  // ── Clipboard for copy/paste ──────────────────────────────
+  interface ClipboardItem { position: { x: number; y: number }; data: Record<string, unknown> }
+  const clipboardRef = useRef<ClipboardItem[]>([])
+  const [hasClipboard, setHasClipboard] = useState(false)
 
   // ── Undo/Redo history ────────────────────────────────────
   const history = useHistory()
@@ -207,6 +253,23 @@ export default function App() {
     setContextMenu(null)
   }, [])
 
+  // ── Canvas background right-click context menu ────────────
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent<Element, MouseEvent>) => {
+      event.preventDefault()
+      // Check hasClipboard from ref (real-time, not stale state)
+      const canPaste = clipboardRef.current.length > 0
+      setHasClipboard(canPaste)
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        type: 'canvas',
+        id: '',
+      })
+    },
+    [],
+  )
+
   // ── Selection change (multi-select tracking) ──────────────
   const onSelectionChange = useCallback(
     ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
@@ -327,6 +390,77 @@ export default function App() {
     }
   }, [contextMenu, setNodes, setEdges, history])
 
+  // ── Copy node (single selection) ──────────────────────────
+  const handleCopyNode = useCallback(() => {
+    if (!contextMenu || contextMenu.type !== 'node') return
+    const node = nodesRef.current.find(n => n.id === contextMenu.id)
+    if (!node) return
+    clipboardRef.current = [{
+      position: { ...node.position },
+      data: JSON.parse(JSON.stringify(node.data)),
+    }]
+    setHasClipboard(true)
+    setContextMenu(null)
+  }, [contextMenu])
+
+  // ── Copy batch (multi-selection) ──────────────────────────
+  const handleCopyBatch = useCallback(() => {
+    if (!contextMenu || contextMenu.type !== 'batch') return
+    const selectedNodes = nodesRef.current.filter(n => n.selected)
+    if (selectedNodes.length === 0) return
+    clipboardRef.current = selectedNodes.map(n => ({
+      position: { ...n.position },
+      data: JSON.parse(JSON.stringify(n.data)),
+    }))
+    setHasClipboard(true)
+    setContextMenu(null)
+  }, [contextMenu])
+
+  // ── Paste nodes from clipboard ───────────────────────────
+  const doPaste = useCallback(() => {
+    if (clipboardRef.current.length === 0) return
+    history.pushSnapshot(nodesRef.current, edges)
+    const offset = { x: 50, y: 50 }
+    const newNodes: Node[] = clipboardRef.current.map((item, i) => ({
+      id: `device-${Date.now()}-${i}`,
+      type: 'deviceNode' as const,
+      position: {
+        x: item.position.x + offset.x,
+        y: item.position.y + offset.y,
+      },
+      data: JSON.parse(JSON.stringify(item.data)),
+      selected: true,
+    }))
+    setNodes((nds) => [
+      ...nds.map(n => ({ ...n, selected: false })),
+      ...newNodes,
+    ])
+    setIsDirty(true)
+    setContextMenu(null)
+  }, [setNodes, edges, history])
+
+  // ── Duplicate selected nodes (Ctrl+D) ────────────────────
+  const doDuplicate = useCallback(() => {
+    const selectedNodes = nodesRef.current.filter(n => n.selected)
+    if (selectedNodes.length === 0) return
+    history.pushSnapshot(nodesRef.current, edges)
+    const newNodes: Node[] = selectedNodes.map((node, i) => ({
+      id: `device-${Date.now()}-${i}`,
+      type: 'deviceNode' as const,
+      position: {
+        x: node.position.x + 30,
+        y: node.position.y + 30,
+      },
+      data: JSON.parse(JSON.stringify(node.data)),
+      selected: true,
+    }))
+    setNodes((nds) => [
+      ...nds.map(n => ({ ...n, selected: false })),
+      ...newNodes,
+    ])
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
   // ── Edge path style change ───────────────────────────────
   const handleEdgePathStyle = useCallback(
     (style: PathStyle) => {
@@ -353,6 +487,64 @@ export default function App() {
     },
     [contextMenu, setEdges, edges, history],
   )
+
+  // ── Topology templates ────────────────────────────────────
+  const refreshTemplateList = useCallback(async () => {
+    try {
+      const list = await window.electronAPI.listTemplates()
+      setTemplateList(list)
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleSaveAsTemplate = useCallback(async () => {
+    const name = window.prompt('请输入模板名称：')
+    if (!name || !name.trim()) return
+    if (!rfInstance) return
+    try {
+      const flow = rfInstance.toObject()
+      const topoFile = { version: '1.0.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
+      const result = await window.electronAPI.saveTemplate(name.trim(), JSON.stringify(topoFile, null, 2))
+      if (result.success) {
+        toast.showToast(`模板「${result.name}」已保存`, 'success')
+        refreshTemplateList()
+      } else {
+        toast.showToast(`保存失败：${result.error}`, 'error')
+      }
+    } catch (err: any) {
+      toast.showToast(`保存模板失败：${err.message}`, 'error')
+    }
+  }, [rfInstance, refreshTemplateList, toast])
+
+  const handleLoadTemplate = useCallback(async (templateName: string) => {
+    try {
+      const content = await window.electronAPI.loadTemplate(templateName)
+      const topoFile = JSON.parse(content)
+      const loadedNodes = (topoFile.nodes || []).map((n: Node) => ({ ...n, type: n.type || 'deviceNode' }))
+      const loadedEdges = (topoFile.edges || []).map((e: Edge) => ({ ...e, type: e.type || 'animated', data: { ...defaultEdgeData, ...e.data } }))
+      history.pushSnapshot(nodesRef.current, edges)
+      setNodes(loadedNodes)
+      setEdges(loadedEdges)
+      setIsDirty(true)
+      history.clearHistory()
+      toast.showToast(`已加载模板「${templateName}」`, 'success')
+      setContextMenu(null)
+    } catch (err: any) {
+      toast.showToast(`加载模板失败：${err.message}`, 'error')
+    }
+  }, [setNodes, setEdges, edges, history, toast])
+
+  const handleDeleteTemplate = useCallback(async (templateName: string) => {
+    try {
+      await window.electronAPI.deleteTemplate(templateName)
+      toast.showToast(`模板「${templateName}」已删除`, 'info')
+      refreshTemplateList()
+    } catch (err: any) {
+      toast.showToast(`删除失败：${err.message}`, 'error')
+    }
+  }, [refreshTemplateList, toast])
+
+  // Load template list on mount
+  useEffect(() => { refreshTemplateList() }, [refreshTemplateList])
 
   // ── Drag & Drop from Sidebar ────────────────────────────
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
@@ -804,14 +996,104 @@ export default function App() {
     window.electronAPI.clearAutoSave().catch(() => {})
   }, [])
 
-  // ── Escape key to deselect all ─────────────────────────────
+  // ── Canvas context menu actions ──────────────────────────
+  const handleSelectAll = useCallback(() => {
+    if (rfInstance) {
+      rfInstance.setNodes(nodesRef.current.map(n => ({ ...n, selected: true })))
+    }
+    setContextMenu(null)
+  }, [rfInstance])
+
+  const handleFitView = useCallback(() => {
+    if (rfInstance) {
+      rfInstance.fitView()
+    }
+    setContextMenu(null)
+  }, [rfInstance])
+
+  const handleZoomIn = useCallback(() => { rfInstance?.zoomIn() }, [rfInstance])
+  const handleZoomOut = useCallback(() => { rfInstance?.zoomOut() }, [rfInstance])
+
+  // ── Viewport tracking ────────────────────────────────────
+  const onMove = useCallback(
+    (_evt: any, viewport: { zoom: number; x: number; y: number }) => {
+      setViewportZoom(viewport.zoom)
+    },
+    [],
+  )
+
+  // ── Keyboard shortcuts ──────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
       // Don't interfere with open dialogs or focused inputs
       if (showNewConfirm || showOpenConfirm || showAutoSaveRecover) return
       const target = e.target as HTMLElement
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      const isEditing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+
+      // Ctrl+C — Copy selected nodes
+      if (e.ctrlKey && e.key === 'c' && !isEditing) {
+        const selectedNodes = nodesRef.current.filter(n => n.selected)
+        if (selectedNodes.length > 0) {
+          clipboardRef.current = selectedNodes.map(n => ({
+            position: { ...n.position },
+            data: JSON.parse(JSON.stringify(n.data)),
+          }))
+          setHasClipboard(true)
+        }
+        return
+      }
+
+      // Ctrl+V — Paste nodes from clipboard
+      if (e.ctrlKey && e.key === 'v' && !isEditing) {
+        e.preventDefault()
+        doPaste()
+        return
+      }
+
+      // Ctrl+D — Duplicate selected nodes
+      if (e.ctrlKey && e.key === 'd' && !isEditing) {
+        e.preventDefault()
+        doDuplicate()
+        return
+      }
+
+      // Ctrl+F — Search canvas
+      if (e.ctrlKey && e.key === 'f' && !isEditing) {
+        e.preventDefault()
+        setSearchOpen(true)
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+        return
+      }
+
+      // Ctrl+G — Group selected nodes
+      if (e.ctrlKey && e.key === 'g' && !e.shiftKey && !isEditing) {
+        e.preventDefault()
+        const selected = nodesRef.current.filter(n => n.selected)
+        if (selected.length < 2) return
+        const groupName = window.prompt('请输入分组名称：')
+        if (!groupName || !groupName.trim()) return
+        history.pushSnapshot(nodesRef.current, edges)
+        setNodes((nds) => nds.map(n =>
+          n.selected ? { ...n, data: { ...n.data, groupName: groupName.trim() } } : n
+        ))
+        setIsDirty(true)
+        return
+      }
+
+      // Ctrl+Shift+G — Ungroup selected nodes
+      if (e.ctrlKey && e.key === 'g' && e.shiftKey && !isEditing) {
+        e.preventDefault()
+        const selected = nodesRef.current.filter(n => n.selected)
+        if (selected.length === 0) return
+        history.pushSnapshot(nodesRef.current, edges)
+        setNodes((nds) => nds.map(n =>
+          n.selected ? { ...n, data: { ...n.data, groupName: undefined } } : n
+        ))
+        setIsDirty(true)
+        return
+      }
+
+      if (e.key !== 'Escape') return
 
       setNodes((nds) => nds.map(n => ({ ...n, selected: false })))
       setEdges((eds) => eds.map(e => ({ ...e, selected: false })))
@@ -821,7 +1103,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setNodes, setEdges, showNewConfirm, showOpenConfirm, showAutoSaveRecover])
+  }, [setNodes, setEdges, doPaste, doDuplicate, showNewConfirm, showOpenConfirm, showAutoSaveRecover])
 
   return (
     <div className="flex flex-col w-screen h-screen bg-canvas">
@@ -871,7 +1153,40 @@ export default function App() {
         onAlignBottom={handleAlignBottom}
         onDistributeHorizontal={handleDistributeHorizontal}
         onDistributeVertical={handleDistributeVertical}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid(!showGrid)}
+        snapEnabled={snapEnabled}
+        onToggleSnap={() => setSnapEnabled(!snapEnabled)}
+        onOpenSearch={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onFitView={handleFitView}
+        viewportZoom={viewportZoom}
+        templateList={templateList}
+        onSaveAsTemplate={handleSaveAsTemplate}
+        onLoadTemplate={handleLoadTemplate}
+        onDeleteTemplate={handleDeleteTemplate}
+        onRefreshTemplateList={refreshTemplateList}
       />
+
+      {/* Status bar */}
+      <div className="h-6 bg-surface border-t border-border flex items-center justify-between px-3 text-2xs text-text-secondary select-none">
+        <div className="flex items-center gap-3">
+          <span>🔍 {Math.round(viewportZoom * 100)}%</span>
+          <span>📦 {nodes.length} 设备</span>
+          <span>🔗 {edges.length} 连线</span>
+          {selectedCount > 0 && <span className="text-accent">✓ 选中 {selectedCount}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Ctrl+G 分组</span>
+          <span className="text-border">|</span>
+          <span>Ctrl+F 搜索</span>
+          <span className="text-border">|</span>
+          <span>Ctrl+C/V 复制粘贴</span>
+          <span className="text-border">|</span>
+          <span>Esc 取消选中</span>
+        </div>
+      </div>
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
@@ -900,6 +1215,8 @@ export default function App() {
               onNodeContextMenu={onNodeContextMenu}
               onSelectionContextMenu={onSelectionContextMenu}
               onPaneClick={onPaneClick}
+              onPaneContextMenu={onPaneContextMenu}
+              onMove={onMove}
               onInit={setRfInstance}
               onDragOver={onDragOver}
               onDrop={onDrop}
@@ -911,17 +1228,19 @@ export default function App() {
               selectionOnDrag
               panOnDrag={[1, 2]}
               onSelectionChange={onSelectionChange}
-              snapToGrid
+              snapToGrid={snapEnabled}
               snapGrid={[10, 10]}
               connectionLineStyle={{ stroke: 'var(--color-connection-preview)', strokeWidth: 3 }}
               className="bg-canvas"
             >
-              <Background
-                variant={BackgroundVariant.Dots}
-                gap={20}
-                size={1}
-                color="var(--color-canvas-grid)"
-              />
+              {showGrid && (
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={20}
+                  size={1}
+                  color="var(--color-canvas-grid)"
+                />
+              )}
               <Controls
                 position="bottom-right"
                 className="[&>button]:!bg-surface [&>button]:!border-border [&>button]:!text-text-primary"
@@ -946,6 +1265,78 @@ export default function App() {
             )}
           </ReactFlowProvider>
 
+          {/* ── Canvas search overlay ── */}
+          {searchOpen && (
+            <>
+              <div className="absolute inset-0 z-30" onClick={() => setSearchOpen(false)} />
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 w-96 max-w-[90%]">
+                <div className="bg-surface border border-border rounded-lg shadow-lg overflow-hidden">
+                  <div className="flex items-center border-b border-border px-3 py-2">
+                    <span className="text-text-secondary mr-2">🔍</span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
+                      placeholder="搜索设备名称、型号、厂商..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setSearchOpen(false)
+                          setSearchQuery('')
+                        }
+                        if (e.key === 'Enter' && searchResults.length > 0) {
+                          handleSearchSelect(searchResults[0].id)
+                        }
+                      }}
+                    />
+                    {searchQuery && (
+                      <button
+                        className="text-text-secondary hover:text-text-primary ml-1"
+                        onClick={() => setSearchQuery('')}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {searchQuery.trim() && (
+                    <div className="max-h-64 overflow-y-auto">
+                      {searchResults.length === 0 ? (
+                        <div className="px-3 py-4 text-center text-xs text-text-secondary">
+                          未找到匹配的设备
+                        </div>
+                      ) : (
+                        searchResults.map((node) => {
+                          const data = getNodeData(node)
+                          return (
+                            <button
+                              key={node.id}
+                              className="w-full text-left px-3 py-2 hover:bg-hover-bg transition-colors border-b border-border last:border-b-0"
+                              onClick={() => handleSearchSelect(node.id)}
+                            >
+                              <div className="text-xs text-text-primary font-medium truncate">
+                                {data?.customName || data?.device?.model || '未命名设备'}
+                              </div>
+                              <div className="text-2xs text-text-secondary mt-0.5">
+                                {[data?.device?.vendor_name, data?.device?.category_name, data?.device?.model]
+                                  .filter(Boolean).join(' · ')}
+                              </div>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
+                  {!searchQuery.trim() && (
+                    <div className="px-3 py-4 text-center text-xs text-text-secondary">
+                      输入关键词搜索画布上的设备
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
           {/* ── Right-click context menu ── */}
           {contextMenu && (
             <CanvasContextMenu
@@ -953,8 +1344,14 @@ export default function App() {
               onClose={() => setContextMenu(null)}
               onEdgePathStyle={handleEdgePathStyle}
               onDeleteEdge={handleDeleteEdge}
+              onCopyNode={handleCopyNode}
               onDeleteNode={handleDeleteNode}
+              onCopyBatch={handleCopyBatch}
               onDeleteBatch={handleDeleteBatch}
+              onPaste={doPaste}
+              onSelectAll={handleSelectAll}
+              onFitView={handleFitView}
+              hasClipboard={hasClipboard}
             />
           )}
         </div>

@@ -3,7 +3,7 @@ import type { PathStyle } from '../types'
 export interface ContextMenuState {
   x: number
   y: number
-  type: 'edge' | 'node' | 'batch'
+  type: 'edge' | 'node' | 'batch' | 'canvas'
   id: string
 }
 
@@ -12,8 +12,14 @@ interface CanvasContextMenuProps {
   onClose: () => void
   onEdgePathStyle: (style: PathStyle) => void
   onDeleteEdge: () => void
+  onCopyNode: () => void
   onDeleteNode: () => void
+  onCopyBatch: () => void
   onDeleteBatch: () => void
+  onPaste: () => void
+  onSelectAll: () => void
+  onFitView: () => void
+  hasClipboard: boolean
 }
 
 export default function CanvasContextMenu({
@@ -73,22 +79,72 @@ export default function CanvasContextMenu({
           </>
         )}
         {contextMenu.type === 'node' && (
-          <button
-            className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"
-            onClick={onDeleteNode}
-          >
-            <span>🗑️</span>
-            <span>删除设备及相关线缆</span>
-          </button>
+          <>
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+              onClick={onCopyNode}
+            >
+              <span className="w-4 text-center">📋</span>
+              <span>复制设备</span>
+            </button>
+            <div className="border-t border-border my-0.5" />
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"
+              onClick={onDeleteNode}
+            >
+              <span>🗑️</span>
+              <span>删除设备及相关线缆</span>
+            </button>
+          </>
         )}
         {contextMenu.type === 'batch' && (
-          <button
-            className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"
-            onClick={onDeleteBatch}
-          >
-            <span>🗑️</span>
-            <span>删除选中设备及线缆</span>
-          </button>
+          <>
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+              onClick={onCopyBatch}
+            >
+              <span className="w-4 text-center">📋</span>
+              <span>复制选中设备</span>
+            </button>
+            <div className="border-t border-border my-0.5" />
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"
+              onClick={onDeleteBatch}
+            >
+              <span>🗑️</span>
+              <span>删除选中设备及线缆</span>
+            </button>
+          </>
+        )}
+        {contextMenu.type === 'canvas' && (
+          <>
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={onPaste}
+              disabled={!hasClipboard}
+            >
+              <span className="w-4 text-center">📋</span>
+              <span>粘贴设备</span>
+              <span className="ml-auto text-2xs text-text-secondary">Ctrl+V</span>
+            </button>
+            <div className="border-t border-border my-0.5" />
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+              onClick={onSelectAll}
+            >
+              <span className="w-4 text-center">⬜</span>
+              <span>全选</span>
+              <span className="ml-auto text-2xs text-text-secondary">Ctrl+A</span>
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+              onClick={onFitView}
+            >
+              <span className="w-4 text-center">🔍</span>
+              <span>适应视窗</span>
+              <span className="ml-auto text-2xs text-text-secondary">Ctrl+0</span>
+            </button>
+          </>
         )}
       </div>
     </>

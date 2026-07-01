@@ -25,6 +25,12 @@ export interface ElectronAPI {
   checkAutoSave: () => Promise<{ exists: boolean; content?: string }>
   clearAutoSave: () => Promise<{ success: boolean }>
 
+  // Topology templates
+  listTemplates: () => Promise<{ name: string; file: string }[]>
+  saveTemplate: (name: string, content: string) => Promise<{ success: boolean; name?: string; error?: string }>
+  loadTemplate: (name: string) => Promise<string>
+  deleteTemplate: (name: string) => Promise<{ success: boolean; error?: string }>
+
   // Open file by path (for recent files menu)
   openFileByPath: (filePath: string) => Promise<{ success: boolean; filePath?: string; content?: string; error?: string }>
 

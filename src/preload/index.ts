@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkAutoSave: () => ipcRenderer.invoke('autoSave:check'),
   clearAutoSave: () => ipcRenderer.invoke('autoSave:clear'),
 
+  // Topology templates
+  listTemplates: () => ipcRenderer.invoke('template:list'),
+  saveTemplate: (name: string, content: string) => ipcRenderer.invoke('template:save', name, content),
+  loadTemplate: (name: string) => ipcRenderer.invoke('template:load', name),
+  deleteTemplate: (name: string) => ipcRenderer.invoke('template:delete', name),
+
   // Open file by path (for recent files menu)
   openFileByPath: (filePath: string) => ipcRenderer.invoke('file:openByPath', filePath),
 

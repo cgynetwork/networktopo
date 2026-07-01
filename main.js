@@ -581,7 +581,7 @@ const menuTemplate = [
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
-    title: 'Topo V0.10.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
+    title: 'Topo V0.11.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
     webPreferences: {
       preload: path.join(__dirname, 'out', 'preload', 'index.js'),
       sandbox: false, contextIsolation: true, nodeIntegration: false,
@@ -598,11 +598,49 @@ function createWindow() {
   }
 }
 
+// ── Topology template management ───────────────────────────
+function registerTemplateHandlers() {
+  const TEMPLATE_DIR = path.join(app.getPath('userData'), 'templates')
+
+  ipcMain.handle('template:list', () => {
+    try {
+      if (!fs.existsSync(TEMPLATE_DIR)) return []
+      return fs.readdirSync(TEMPLATE_DIR)
+        .filter(f => f.endsWith('.topo.json'))
+        .map(f => ({ name: f.replace('.topo.json', ''), file: f }))
+    } catch { return [] }
+  })
+
+  ipcMain.handle('template:save', (_e, name, content) => {
+    try {
+      fs.mkdirSync(TEMPLATE_DIR, { recursive: true })
+      const safeName = name.replace(/[<>:"/\\|?*]/g, '_')
+      fs.writeFileSync(path.join(TEMPLATE_DIR, `${safeName}.topo.json`), content, 'utf-8')
+      return { success: true, name: safeName }
+    } catch (e) { return { success: false, error: e.message } }
+  })
+
+  ipcMain.handle('template:load', (_e, name) => {
+    const filePath = path.join(TEMPLATE_DIR, `${name}.topo.json`)
+    if (!fs.existsSync(filePath)) throw new Error('模板文件不存在')
+    return fs.readFileSync(filePath, 'utf-8')
+  })
+
+  ipcMain.handle('template:delete', (_e, name) => {
+    try {
+      const filePath = path.join(TEMPLATE_DIR, `${name}.topo.json`)
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+      return { success: true }
+    } catch (e) { return { success: false, error: e.message } }
+  })
+}
+
 // ── App ───────────────────────────────────────────────────
 registerDeviceHandlers()
 registerFileHandlers()
 registerAutoSaveHandlers()
 registerRecentHandlers()
+registerTemplateHandlers()
 app.whenReady().then(() => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate))
   rebuildRecentMenu(Menu.getApplicationMenu())

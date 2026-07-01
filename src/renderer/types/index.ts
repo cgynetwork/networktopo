@@ -106,6 +106,8 @@ export interface NodeData {
   portInterleaved?: boolean  // When true, ports are numbered column-major (alternating rows)
   // V0.9.3: Business description — shown on long-hover tooltip
   businessNote?: string
+  // V0.11.0: Node grouping — nodes with same groupName belong to a logical group
+  groupName?: string
 }
 
 // Topo file format
