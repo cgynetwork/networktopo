@@ -581,7 +581,7 @@ const menuTemplate = [
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
-    title: 'Topo V0.11.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
+    title: 'Topo V1.0.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
     webPreferences: {
       preload: path.join(__dirname, 'out', 'preload', 'index.js'),
       sandbox: false, contextIsolation: true, nodeIntegration: false,
@@ -632,6 +632,28 @@ function registerTemplateHandlers() {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
       return { success: true }
     } catch (e) { return { success: false, error: e.message } }
+  })
+
+  ipcMain.handle('template:import', async () => {
+    const win = BrowserWindow.getFocusedWindow(); if (!win) return { success: false }
+    const r = await dialog.showOpenDialog(win, {
+      title: '导入拓扑模板',
+      filters: [{ name: 'Topo 模板文件', extensions: ['topo.json'] }],
+      properties: ['openFile'],
+    })
+    if (r.canceled) return { success: false, canceled: true }
+    try {
+      const content = fs.readFileSync(r.filePaths[0], 'utf-8')
+      // Validate it's a valid topo file
+      JSON.parse(content)
+      const baseName = path.basename(r.filePaths[0], '.topo.json')
+      const safeName = baseName.replace(/[<>:"/\\|?*]/g, '_')
+      fs.mkdirSync(TEMPLATE_DIR, { recursive: true })
+      fs.writeFileSync(path.join(TEMPLATE_DIR, `${safeName}.topo.json`), content, 'utf-8')
+      return { success: true, name: safeName }
+    } catch (e) {
+      return { success: false, error: e.message }
+    }
   })
 }
 

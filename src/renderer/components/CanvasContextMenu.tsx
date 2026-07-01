@@ -20,6 +20,10 @@ interface CanvasContextMenuProps {
   onSelectAll: () => void
   onFitView: () => void
   hasClipboard: boolean
+  onUngroupNode?: () => void
+  onUngroupBatch?: () => void
+  hasGroupedNode?: boolean
+  hasGroupedSelection?: boolean
 }
 
 export default function CanvasContextMenu({
@@ -27,8 +31,18 @@ export default function CanvasContextMenu({
   onClose,
   onEdgePathStyle,
   onDeleteEdge,
+  onCopyNode,
   onDeleteNode,
+  onCopyBatch,
   onDeleteBatch,
+  onPaste,
+  onSelectAll,
+  onFitView,
+  hasClipboard,
+  onUngroupNode,
+  onUngroupBatch,
+  hasGroupedNode,
+  hasGroupedSelection,
 }: CanvasContextMenuProps) {
   return (
     <>
@@ -87,6 +101,18 @@ export default function CanvasContextMenu({
               <span className="w-4 text-center">📋</span>
               <span>复制设备</span>
             </button>
+            {hasGroupedNode && (
+              <>
+                <div className="border-t border-border my-0.5" />
+                <button
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+                  onClick={onUngroupNode}
+                >
+                  <span className="w-4 text-center">🔓</span>
+                  <span>取消分组</span>
+                </button>
+              </>
+            )}
             <div className="border-t border-border my-0.5" />
             <button
               className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"
@@ -106,6 +132,18 @@ export default function CanvasContextMenu({
               <span className="w-4 text-center">📋</span>
               <span>复制选中设备</span>
             </button>
+            {hasGroupedSelection && (
+              <>
+                <div className="border-t border-border my-0.5" />
+                <button
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+                  onClick={onUngroupBatch}
+                >
+                  <span className="w-4 text-center">🔓</span>
+                  <span>取消分组</span>
+                </button>
+              </>
+            )}
             <div className="border-t border-border my-0.5" />
             <button
               className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"

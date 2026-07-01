@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTemplate: (name: string, content: string) => ipcRenderer.invoke('template:save', name, content),
   loadTemplate: (name: string) => ipcRenderer.invoke('template:load', name),
   deleteTemplate: (name: string) => ipcRenderer.invoke('template:delete', name),
+  importTemplate: () => ipcRenderer.invoke('template:import'),
 
   // Open file by path (for recent files menu)
   openFileByPath: (filePath: string) => ipcRenderer.invoke('file:openByPath', filePath),

@@ -1,6 +1,6 @@
 {
     "name": "topo",
-    "version": "0.11.0",
+    "version": "1.0.0",
     "description": "网络拓扑绘制软件",
     "main": "./main.js",
     "scripts": {
@@ -30,7 +30,7 @@
                 "nsis",
                 "portable"
             ],
-            "icon": null
+            "icon": "resources/icon.ico"
         },
         "nsis": {
             "oneClick": false,

@@ -30,6 +30,7 @@ export interface ElectronAPI {
   saveTemplate: (name: string, content: string) => Promise<{ success: boolean; name?: string; error?: string }>
   loadTemplate: (name: string) => Promise<string>
   deleteTemplate: (name: string) => Promise<{ success: boolean; error?: string }>
+  importTemplate: () => Promise<{ success: boolean; name?: string; canceled?: boolean; error?: string }>
 
   // Open file by path (for recent files menu)
   openFileByPath: (filePath: string) => Promise<{ success: boolean; filePath?: string; content?: string; error?: string }>

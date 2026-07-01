@@ -7,10 +7,12 @@ Windows 桌面端网络拓扑绘制工具，Electron + React + TypeScript 构建
 
 | 文档 | 路径 | 说明 |
 |------|------|------|
-| 需求规格 | [docs/requirements.md](docs/requirements.md) | 功能需求和非功能需求 |
-| 技术方案 | [docs/tech-stack.md](docs/tech-stack.md) | 技术栈、依赖、项目结构 |
-| 设计规范 | [docs/design-spec.md](docs/design-spec.md) | UI 色彩、布局、字体、交互规范 |
-| 执行计划 | [docs/development-plan.md](docs/development-plan.md) | 分阶段开发步骤 |
+| 需求规格 | [docs/requirements.md](docs/requirements.md) | 功能需求和非功能需求 (R1-R22) |
+| 技术方案 | [docs/tech-stack.md](docs/tech-stack.md) | 技术栈、依赖、项目结构、架构决策 |
+| 设计规范 | [docs/design-spec.md](docs/design-spec.md) | UI 色彩、布局、字体、交互、组件设计 |
+| 执行计划 | [docs/development-plan.md](docs/development-plan.md) | 分阶段开发步骤 (Phase 1-8) |
+| 变更日志 | [CHANGELOG.md](CHANGELOG.md) | 所有版本变更记录 (V0.1.0 → V1.0.0) |
+| 发布说明 | [RELEASE_NOTES.md](RELEASE_NOTES.md) | V1.0.0 发布说明 |
 | 开发日志 | [devlog/](devlog/) | 每日开发记录 |
 
 ## 工作指引

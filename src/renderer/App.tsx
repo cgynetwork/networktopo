@@ -23,6 +23,7 @@ import ToastContainer from './components/Toast/ToastContainer'
 import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 import CanvasContextMenu from './components/CanvasContextMenu'
 import type { ContextMenuState } from './components/CanvasContextMenu'
+import PromptDialog from './components/PromptDialog/PromptDialog'
 import DeviceNode from './components/nodes/DeviceNode'
 import AnimatedEdge from './components/edges/AnimatedEdge'
 import type { DeviceRow, EdgeData, PathStyle } from './types'
@@ -117,6 +118,23 @@ export default function App() {
   const [showNewConfirm, setShowNewConfirm] = useState(false)
   const [showOpenConfirm, setShowOpenConfirm] = useState(false)
   const [showAutoSaveRecover, setShowAutoSaveRecover] = useState<string | null>(null) // stores the content to recover
+
+  // ── Prompt dialog (replaces window.prompt) ─────────────────
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [promptTitle, setPromptTitle] = useState('')
+  const [promptMessage, setPromptMessage] = useState('')
+  const [promptDefaultValue, setPromptDefaultValue] = useState('')
+  const promptResolveRef = useRef<((value: string | null) => void) | null>(null)
+
+  const showPrompt = useCallback((title: string, message?: string, defaultValue?: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      promptResolveRef.current = resolve
+      setPromptTitle(title)
+      setPromptMessage(message || '')
+      setPromptDefaultValue(defaultValue || '')
+      setPromptOpen(true)
+    })
+  }, [])
 
   // ── Context menu state (unified: edge + node) ────────────
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -390,6 +408,41 @@ export default function App() {
     }
   }, [contextMenu, setNodes, setEdges, history])
 
+  // ── Ungroup single node ─────────────────────────────────
+  const handleUngroupNode = useCallback(() => {
+    if (!contextMenu || contextMenu.type !== 'node') return
+    const nodeId = contextMenu.id
+    const node = nodesRef.current.find(n => n.id === nodeId)
+    if (!node) return
+    const data = getNodeData(node)
+    if (!data?.groupName) return
+    history.pushSnapshot(nodesRef.current, edges)
+    setNodes((nds) => nds.map(n =>
+      n.id === nodeId ? { ...n, data: { ...n.data, groupName: undefined } } : n
+    ))
+    setIsDirty(true)
+    setContextMenu(null)
+    toast.showToast('已取消分组', 'info')
+  }, [contextMenu, setNodes, edges, history, toast])
+
+  // ── Ungroup batch (selected nodes) ──────────────────────
+  const handleUngroupBatch = useCallback(() => {
+    if (!contextMenu || contextMenu.type !== 'batch') return
+    const selectedNodes = nodesRef.current.filter(n => n.selected)
+    const groupedCount = selectedNodes.filter(n => {
+      const data = getNodeData(n)
+      return !!data?.groupName
+    }).length
+    if (groupedCount === 0) return
+    history.pushSnapshot(nodesRef.current, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, data: { ...n.data, groupName: undefined } } : n
+    ))
+    setIsDirty(true)
+    setContextMenu(null)
+    toast.showToast(`已取消分组（${groupedCount} 台设备）`, 'info')
+  }, [contextMenu, setNodes, edges, history, toast])
+
   // ── Copy node (single selection) ──────────────────────────
   const handleCopyNode = useCallback(() => {
     if (!contextMenu || contextMenu.type !== 'node') return
@@ -497,9 +550,12 @@ export default function App() {
   }, [])
 
   const handleSaveAsTemplate = useCallback(async () => {
-    const name = window.prompt('请输入模板名称：')
+    const name = await showPrompt('保存拓扑模板', '请输入模板名称：', '')
     if (!name || !name.trim()) return
-    if (!rfInstance) return
+    if (!rfInstance) {
+      toast.showToast('画布未就绪，请稍后重试', 'error')
+      return
+    }
     try {
       const flow = rfInstance.toObject()
       const topoFile = { version: '1.0.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
@@ -513,7 +569,7 @@ export default function App() {
     } catch (err: any) {
       toast.showToast(`保存模板失败：${err.message}`, 'error')
     }
-  }, [rfInstance, refreshTemplateList, toast])
+  }, [rfInstance, refreshTemplateList, toast, showPrompt])
 
   const handleLoadTemplate = useCallback(async (templateName: string) => {
     try {
@@ -540,6 +596,20 @@ export default function App() {
       refreshTemplateList()
     } catch (err: any) {
       toast.showToast(`删除失败：${err.message}`, 'error')
+    }
+  }, [refreshTemplateList, toast])
+
+  const handleImportTemplate = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.importTemplate()
+      if (result.success) {
+        toast.showToast(`已导入模板「${result.name}」`, 'success')
+        refreshTemplateList()
+      } else if (!result.canceled) {
+        toast.showToast(`导入失败：${result.error || '未知错误'}`, 'error')
+      }
+    } catch (err: any) {
+      toast.showToast(`导入模板失败：${err.message}`, 'error')
     }
   }, [refreshTemplateList, toast])
 
@@ -1069,14 +1139,19 @@ export default function App() {
       if (e.ctrlKey && e.key === 'g' && !e.shiftKey && !isEditing) {
         e.preventDefault()
         const selected = nodesRef.current.filter(n => n.selected)
-        if (selected.length < 2) return
-        const groupName = window.prompt('请输入分组名称：')
-        if (!groupName || !groupName.trim()) return
-        history.pushSnapshot(nodesRef.current, edges)
-        setNodes((nds) => nds.map(n =>
-          n.selected ? { ...n, data: { ...n.data, groupName: groupName.trim() } } : n
-        ))
-        setIsDirty(true)
+        if (selected.length < 2) {
+          toast.showToast('请至少选择 2 台设备进行分组', 'info')
+          return
+        }
+        showPrompt('设备分组', `为选中的 ${selected.length} 台设备设置分组名称：`, '').then(groupName => {
+          if (!groupName || !groupName.trim()) return
+          history.pushSnapshot(nodesRef.current, edges)
+          setNodes((nds) => nds.map(n =>
+            n.selected ? { ...n, data: { ...n.data, groupName: groupName.trim() } } : n
+          ))
+          setIsDirty(true)
+          toast.showToast(`已创建分组「${groupName.trim()}」（${selected.length} 台设备）`, 'success')
+        })
         return
       }
 
@@ -1090,6 +1165,7 @@ export default function App() {
           n.selected ? { ...n, data: { ...n.data, groupName: undefined } } : n
         ))
         setIsDirty(true)
+        toast.showToast(`已取消分组（${selected.length} 台设备）`, 'info')
         return
       }
 
@@ -1103,7 +1179,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setNodes, setEdges, doPaste, doDuplicate, showNewConfirm, showOpenConfirm, showAutoSaveRecover])
+  }, [setNodes, setEdges, doPaste, doDuplicate, showNewConfirm, showOpenConfirm, showAutoSaveRecover, showPrompt, toast])
 
   return (
     <div className="flex flex-col w-screen h-screen bg-canvas">
@@ -1166,6 +1242,7 @@ export default function App() {
         onSaveAsTemplate={handleSaveAsTemplate}
         onLoadTemplate={handleLoadTemplate}
         onDeleteTemplate={handleDeleteTemplate}
+        onImportTemplate={handleImportTemplate}
         onRefreshTemplateList={refreshTemplateList}
       />
 
@@ -1352,6 +1429,16 @@ export default function App() {
               onSelectAll={handleSelectAll}
               onFitView={handleFitView}
               hasClipboard={hasClipboard}
+              onUngroupNode={handleUngroupNode}
+              onUngroupBatch={handleUngroupBatch}
+              hasGroupedNode={
+                contextMenu.type === 'node' &&
+                !!getNodeData(nodesRef.current.find(n => n.id === contextMenu.id))?.groupName
+              }
+              hasGroupedSelection={
+                contextMenu.type === 'batch' &&
+                nodesRef.current.filter(n => n.selected).some(n => !!getNodeData(n)?.groupName)
+              }
             />
           )}
         </div>
@@ -1423,6 +1510,24 @@ export default function App() {
         variant="warning"
         onConfirm={handleAutoSaveRecover}
         onCancel={handleAutoSaveDismiss}
+      />
+
+      {/* ── Prompt dialog (replaces window.prompt) ── */}
+      <PromptDialog
+        open={promptOpen}
+        title={promptTitle}
+        message={promptMessage}
+        defaultValue={promptDefaultValue}
+        confirmLabel="确认"
+        cancelLabel="取消"
+        onConfirm={(value) => {
+          setPromptOpen(false)
+          promptResolveRef.current?.(value)
+        }}
+        onCancel={() => {
+          setPromptOpen(false)
+          promptResolveRef.current?.(null)
+        }}
       />
 
     </div>

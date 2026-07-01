@@ -45,6 +45,7 @@ interface ToolbarProps {
   onSaveAsTemplate?: () => void
   onLoadTemplate?: (name: string) => void
   onDeleteTemplate?: (name: string) => void
+  onImportTemplate?: () => void
   onRefreshTemplateList?: () => void
 }
 
@@ -90,6 +91,7 @@ export default function Toolbar({
   onSaveAsTemplate,
   onLoadTemplate,
   onDeleteTemplate,
+  onImportTemplate,
   onRefreshTemplateList,
 }: ToolbarProps) {
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -220,7 +222,7 @@ export default function Toolbar({
           {isDirty && <span className="text-amber-500 mr-0.5">•</span>}
           Topo
         </span>
-        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V0.11.0</span>
+        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.0.0</span>
         {/* V0.9.2: Asset statistics with hover tooltip */}
         <div
           className="relative"
@@ -393,6 +395,12 @@ export default function Toolbar({
                 disabled={nodes.length === 0}
               >
                 💾 保存为模板...
+              </button>
+              <button
+                onMouseDown={() => { onImportTemplate?.(); setShowTemplateMenu(false) }}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary"
+              >
+                📥 导入模板...
               </button>
               {templateList && templateList.length > 0 && (
                 <>

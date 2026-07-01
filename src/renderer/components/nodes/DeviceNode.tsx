@@ -19,6 +19,15 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: stri
 
 const DEFAULT_COLOR = { bg: 'var(--color-cat-default-bg)', border: 'var(--color-cat-default-border)', accent: 'var(--color-cat-default-accent)', light: 'var(--color-cat-default-light)' }
 
+/** Simple string hash → number (for consistent group color assignment) */
+function hashStr(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
+}
+
 export interface DeviceNodeData {
   device: DeviceRow
   customName?: string
@@ -36,6 +45,7 @@ export interface DeviceNodeData {
   isStacked?: boolean           // V0.9.0: 设备堆叠模式
   portZeroBased?: boolean        // V0.9.1: GE0 起始编号
   portInterleaved?: boolean      // V0.9.1: 交错编号（列优先）
+  groupName?: string             // V0.11.0: 分组名称
 }
 
 // ── DeviceNode ─────────────────────────────────────────────────
@@ -303,6 +313,19 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         >
           {displayPorts || <span className="text-text-secondary italic">无端口信息</span>}
         </div>
+        {/* V0.11.0: Group badge — shows when node belongs to a named group */}
+        {nodeData.groupName && (
+          <div
+            className="text-2xs truncate rounded px-2 py-0.5 mt-1 font-medium"
+            style={{
+              backgroundColor: `hsl(${hashStr(nodeData.groupName) % 360}, 45%, 88%)`,
+              color: `hsl(${hashStr(nodeData.groupName) % 360}, 55%, 28%)`,
+            }}
+            title={`分组：${nodeData.groupName}`}
+          >
+            📁 {nodeData.groupName}
+          </div>
+        )}
       </div>
 
       {/* V0.9.3: Business description tooltip (3-second hover) */}
