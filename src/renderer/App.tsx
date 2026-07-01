@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef, DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, DragEvent } from 'react'
 import {
   ReactFlow,
   Background,
@@ -26,7 +26,7 @@ import type { ContextMenuState } from './components/CanvasContextMenu'
 import DeviceNode from './components/nodes/DeviceNode'
 import AnimatedEdge from './components/edges/AnimatedEdge'
 import type { DeviceRow, EdgeData, PathStyle } from './types'
-import { getDeviceFromNode } from './types'
+import { getDeviceFromNode, getNodeData } from './types'
 import { getDefaultPortLabel, listAllPorts } from './utils/portParser'
 import { useHistory } from './hooks/useHistory'
 import { useGifExport } from './hooks/useGifExport'
@@ -60,12 +60,15 @@ export default function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
+  const selectedCount = useMemo(() => nodes.filter(n => n.selected).length, [nodes])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [panelCollapsed, setPanelCollapsed] = useState(true)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
+  const edgesRef = useRef(edges)
+  edgesRef.current = edges
   const { theme, toggleTheme } = useTheme()
   const toast = useToast()
 
@@ -93,7 +96,23 @@ export default function App() {
     (connection: Connection) => {
       // Prevent self-connections
       if (connection.source === connection.target) return false
-      // Accept all valid inter-node connections
+      // V0.9.0: STACK port can only connect to STACK port
+      const srcIsStack = connection.sourceHandle === 'STACK'
+      const tgtIsStack = connection.targetHandle === 'STACK'
+      if (srcIsStack !== tgtIsStack) return false
+      // V0.9.3: WLAN port can only connect to WLAN port or Wireless AP
+      const srcIsWlan = connection.sourceHandle === 'WLAN'
+      const tgtIsWlan = connection.targetHandle === 'WLAN'
+      if (srcIsWlan || tgtIsWlan) {
+        // WLAN-to-WLAN is allowed
+        if (srcIsWlan && tgtIsWlan) return true
+        // One end is WLAN, the other must be a wireless AP
+        const otherNodeId = srcIsWlan ? connection.target : connection.source
+        const otherNode = nodesRef.current.find(n => n.id === otherNodeId)
+        const otherDevice = getDeviceFromNode(otherNode!)
+        if (otherDevice?.category_name !== '无线接入点') return false
+        return true
+      }
       return true
     },
     [],
@@ -119,20 +138,40 @@ export default function App() {
         const srcDevice = getDeviceFromNode(srcNode!)
         const tgtDevice = getDeviceFromNode(tgtNode!)
         if (!sourcePort && srcDevice?.ports_info) {
-          sourcePort = listAllPorts(srcDevice.ports_info)[0] || getDefaultPortLabel(srcDevice.ports_info)
+          const srcData = getNodeData(srcNode!)
+          sourcePort = listAllPorts(srcDevice.ports_info, {
+            zeroBased: srcData?.portZeroBased,
+            interleaved: srcData?.portInterleaved,
+          })[0] || getDefaultPortLabel(srcDevice.ports_info)
         }
         if (!targetPort && tgtDevice?.ports_info) {
-          targetPort = listAllPorts(tgtDevice.ports_info)[0] || getDefaultPortLabel(tgtDevice.ports_info)
+          const tgtData = getNodeData(tgtNode!)
+          targetPort = listAllPorts(tgtDevice.ports_info, {
+            zeroBased: tgtData?.portZeroBased,
+            interleaved: tgtData?.portInterleaved,
+          })[0] || getDefaultPortLabel(tgtDevice.ports_info)
         }
       }
 
       history.pushSnapshot(nodesRef.current, edges)
+
+      // V0.9.0: Auto-detect STACK-to-STACK connection
+      const isStackConnection = connection.sourceHandle === 'STACK' && connection.targetHandle === 'STACK'
+      // V0.9.3: Auto-detect WLAN connection
+      const isWirelessConnection = connection.sourceHandle === 'WLAN' || connection.targetHandle === 'WLAN'
+
       setEdges((eds) =>
         addEdge(
           {
             ...connection,
             type: 'animated',
-            data: { ...defaultEdgeData, sourcePort, targetPort },
+            data: {
+              ...defaultEdgeData,
+              sourcePort,
+              targetPort,
+              ...(isStackConnection ? { connectionType: 'stack', pathStyle: 'step' as PathStyle } : {}),
+              ...(isWirelessConnection ? { connectionType: 'wireless' as EdgeData['connectionType'], animationStyle: 'wave' as EdgeData['animationStyle'] } : {}),
+            },
           },
           eds
         )
@@ -168,6 +207,32 @@ export default function App() {
     setContextMenu(null)
   }, [])
 
+  // ── Selection change (multi-select tracking) ──────────────
+  const onSelectionChange = useCallback(
+    ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
+      // Use React Flow's callback params — they come from Zustand store, always in sync
+      const count = selNodes.length
+      if (count === 1) {
+        setSelectedNode(selNodes[0])
+        setSelectedEdge(null)
+        setPanelCollapsed(false)
+      } else if (count > 1) {
+        setSelectedNode(null)
+        setSelectedEdge(null)
+        setPanelCollapsed(false)
+      } else if (selEdges.length > 0) {
+        setSelectedEdge(selEdges[0])
+        setSelectedNode(null)
+        setPanelCollapsed(false)
+      } else {
+        setSelectedNode(null)
+        setSelectedEdge(null)
+        setPanelCollapsed(true)
+      }
+    },
+    [],
+  )
+
   // ── Edge right-click context menu ─────────────────────────
   const onEdgeContextMenu = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
@@ -186,11 +251,42 @@ export default function App() {
   const onNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault()
+      // Check selection via refs (synced from React state) rather than callback's
+      // `node.selected` which may be stale from React Flow's internal userNode ref
+      const currentNodes = nodesRef.current
+      const selectedNodes = currentNodes.filter(n => n.selected)
+      const isMultiSelect = selectedNodes.length > 1
+      const clickedNodeIsSelected = selectedNodes.some(n => n.id === node.id)
+      if (isMultiSelect && clickedNodeIsSelected) {
+        setContextMenu({
+          x: event.clientX,
+          y: event.clientY,
+          type: 'batch',
+          id: '',
+        })
+      } else {
+        setContextMenu({
+          x: event.clientX,
+          y: event.clientY,
+          type: 'node',
+          id: node.id,
+        })
+      }
+    },
+    [],
+  )
+
+  // ── Selection overlay right-click (multi-select nodes) ─────
+  // React Flow v12 renders a NodesSelection overlay on top of selected nodes
+  // which intercepts contextmenu events. We must handle this separately.
+  const onSelectionContextMenu = useCallback(
+    (event: React.MouseEvent, selNodes: Node[]) => {
+      event.preventDefault()
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
-        type: 'node',
-        id: node.id,
+        type: 'batch',
+        id: '',
       })
     },
     [],
@@ -215,6 +311,21 @@ export default function App() {
     setContextMenu(null)
     setIsDirty(true)
   }, [contextMenu, setNodes, setEdges, edges, history])
+
+  const handleDeleteBatch = useCallback(() => {
+    if (!contextMenu || contextMenu.type !== 'batch') return
+    const selectedNodes = nodesRef.current.filter(n => n.selected)
+    const selectedEdges = edgesRef.current.filter(e => e.selected)
+    if (selectedNodes.length > 0 || selectedEdges.length > 0) {
+      history.pushSnapshot(nodesRef.current, edgesRef.current)
+      setNodes((nds) => nds.filter(n => !n.selected))
+      setEdges((eds) => eds.filter(e => !e.selected))
+      setSelectedNode(null)
+      setSelectedEdge(null)
+      setContextMenu(null)
+      setIsDirty(true)
+    }
+  }, [contextMenu, setNodes, setEdges, history])
 
   // ── Edge path style change ───────────────────────────────
   const handleEdgePathStyle = useCallback(
@@ -328,6 +439,116 @@ export default function App() {
     },
     [setEdges, edges, history],
   )
+
+  // ── Alignment & Distribution ──────────────────────────────
+  // Grid snap helper (matches React Flow snapGrid={[10, 10]})
+  const snapToGridPoint = (val: number): number => Math.round(val / 10) * 10
+
+  const handleAlignLeft = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 2) return
+    const minX = Math.min(...selected.map(n => n.position.x))
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, position: { ...n.position, x: snapToGridPoint(minX) } } : n
+    ))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleAlignHorizontalCenter = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 2) return
+    const avgX = selected.reduce((sum, n) => sum + n.position.x, 0) / selected.length
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, position: { ...n.position, x: snapToGridPoint(avgX) } } : n
+    ))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleAlignRight = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 2) return
+    const maxX = Math.max(...selected.map(n => n.position.x))
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, position: { ...n.position, x: snapToGridPoint(maxX) } } : n
+    ))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleAlignTop = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 2) return
+    const minY = Math.min(...selected.map(n => n.position.y))
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, position: { ...n.position, y: snapToGridPoint(minY) } } : n
+    ))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleAlignVerticalCenter = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 2) return
+    const avgY = selected.reduce((sum, n) => sum + n.position.y, 0) / selected.length
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, position: { ...n.position, y: snapToGridPoint(avgY) } } : n
+    ))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleAlignBottom = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 2) return
+    const maxY = Math.max(...selected.map(n => n.position.y))
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n =>
+      n.selected ? { ...n, position: { ...n.position, y: snapToGridPoint(maxY) } } : n
+    ))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleDistributeHorizontal = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 3) return
+    const sorted = [...selected].sort((a, b) => a.position.x - b.position.x)
+    const minX = sorted[0].position.x
+    const maxX = sorted[sorted.length - 1].position.x
+    const spacing = (maxX - minX) / (sorted.length - 1)
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n => {
+      if (!n.selected) return n
+      const idx = sorted.findIndex(s => s.id === n.id)
+      return { ...n, position: { ...n.position, x: snapToGridPoint(minX + idx * spacing) } }
+    }))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
+
+  const handleDistributeVertical = useCallback(() => {
+    const currentNodes = nodesRef.current
+    const selected = currentNodes.filter(n => n.selected)
+    if (selected.length < 3) return
+    const sorted = [...selected].sort((a, b) => a.position.y - b.position.y)
+    const minY = sorted[0].position.y
+    const maxY = sorted[sorted.length - 1].position.y
+    const spacing = (maxY - minY) / (sorted.length - 1)
+    history.pushSnapshot(currentNodes, edges)
+    setNodes((nds) => nds.map(n => {
+      if (!n.selected) return n
+      const idx = sorted.findIndex(s => s.id === n.id)
+      return { ...n, position: { ...n.position, y: snapToGridPoint(minY + idx * spacing) } }
+    }))
+    setIsDirty(true)
+  }, [setNodes, edges, history])
 
   // ── File Operations ──────────────────────────────────────
   const {
@@ -583,6 +804,25 @@ export default function App() {
     window.electronAPI.clearAutoSave().catch(() => {})
   }, [])
 
+  // ── Escape key to deselect all ─────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // Don't interfere with open dialogs or focused inputs
+      if (showNewConfirm || showOpenConfirm || showAutoSaveRecover) return
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+
+      setNodes((nds) => nds.map(n => ({ ...n, selected: false })))
+      setEdges((eds) => eds.map(e => ({ ...e, selected: false })))
+      setSelectedNode(null)
+      setSelectedEdge(null)
+      setPanelCollapsed(true)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [setNodes, setEdges, showNewConfirm, showOpenConfirm, showAutoSaveRecover])
+
   return (
     <div className="flex flex-col w-screen h-screen bg-canvas">
       {/* Toolbar */}
@@ -622,6 +862,15 @@ export default function App() {
         }}
         canUndo={history.canUndo()}
         canRedo={history.canRedo()}
+        selectedCount={selectedCount}
+        onAlignLeft={handleAlignLeft}
+        onAlignHorizontalCenter={handleAlignHorizontalCenter}
+        onAlignRight={handleAlignRight}
+        onAlignTop={handleAlignTop}
+        onAlignVerticalCenter={handleAlignVerticalCenter}
+        onAlignBottom={handleAlignBottom}
+        onDistributeHorizontal={handleDistributeHorizontal}
+        onDistributeVertical={handleDistributeVertical}
       />
 
       {/* Main content area */}
@@ -649,6 +898,7 @@ export default function App() {
               onEdgeClick={onEdgeClick}
               onEdgeContextMenu={onEdgeContextMenu}
               onNodeContextMenu={onNodeContextMenu}
+              onSelectionContextMenu={onSelectionContextMenu}
               onPaneClick={onPaneClick}
               onInit={setRfInstance}
               onDragOver={onDragOver}
@@ -658,6 +908,9 @@ export default function App() {
               fitView
               deleteKeyCode={['Delete', 'Backspace']}
               multiSelectionKeyCode="Shift"
+              selectionOnDrag
+              panOnDrag={[1, 2]}
+              onSelectionChange={onSelectionChange}
               snapToGrid
               snapGrid={[10, 10]}
               connectionLineStyle={{ stroke: 'var(--color-connection-preview)', strokeWidth: 3 }}
@@ -701,6 +954,7 @@ export default function App() {
               onEdgePathStyle={handleEdgePathStyle}
               onDeleteEdge={handleDeleteEdge}
               onDeleteNode={handleDeleteNode}
+              onDeleteBatch={handleDeleteBatch}
             />
           )}
         </div>
@@ -714,6 +968,7 @@ export default function App() {
           <PropertyPanel
             selectedNode={selectedNode}
             selectedEdge={selectedEdge}
+            selectedCount={selectedCount}
             nodes={nodes}
             edges={edges}
             onClose={() => {
@@ -772,6 +1027,7 @@ export default function App() {
         onConfirm={handleAutoSaveRecover}
         onCancel={handleAutoSaveDismiss}
       />
+
     </div>
   )
 }

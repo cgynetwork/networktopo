@@ -3,7 +3,40 @@ import Database from 'better-sqlite3'
 export function seedData(db: Database.Database): void {
   // Check if data already exists
   const count = db.prepare('SELECT COUNT(*) as cnt FROM categories').get() as { cnt: number }
-  if (count.cnt > 0) return
+  if (count.cnt > 0) {
+    // V0.9.3: Incremental migration — add new categories if missing
+    const pcCount = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name = '终端-PC'").get() as { cnt: number }
+    if (pcCount.cnt === 0) {
+      const migrateCat = db.prepare('INSERT OR IGNORE INTO categories (name, icon, sort_order) VALUES (?, ?, ?)')
+      migrateCat.run('终端-PC', 'pc', 6)
+      migrateCat.run('终端-笔记本', 'laptop', 7)
+      const migrateVendor = db.prepare('INSERT OR IGNORE INTO vendors (name, logo_path) VALUES (?, ?)')
+      migrateVendor.run('Lenovo', null)
+      migrateVendor.run('Dell', null)
+      migrateVendor.run('HP', null)
+      migrateVendor.run('Apple', null)
+      // Insert new device models
+      const migrateDevice = db.prepare('INSERT OR IGNORE INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const newDevices: Array<[number, number, string, string, string]> = [
+        [6, 6, 'ThinkCentre M70t', 'Lenovo 商用台式机，i5/16GB/512GB', '1×WLAN+1×GE'],
+        [6, 6, 'ThinkCentre M90t', 'Lenovo 高端台式机，i7/32GB/1TB', '1×WLAN+1×GE'],
+        [6, 7, 'OptiPlex 7000', 'Dell 商用台式机，i7/32GB/512GB', '1×WLAN+1×GE'],
+        [6, 8, 'EliteDesk 800 G9', 'HP 商用台式机，i5/16GB/256GB', '1×WLAN+1×GE'],
+        [7, 6, 'ThinkPad X1 Carbon', 'Lenovo 商务旗舰笔记本', '1×WLAN+1×GE'],
+        [7, 6, 'ThinkPad T14', 'Lenovo 商用笔记本', '1×WLAN+1×GE'],
+        [7, 7, 'Latitude 7440', 'Dell 商务笔记本', '1×WLAN+1×GE'],
+        [7, 8, 'EliteBook 840 G10', 'HP 商务笔记本', '1×WLAN+1×GE'],
+        [7, 9, 'MacBook Pro 14', 'Apple 商务笔记本', '1×WLAN+1×GE'],
+        [6, 1, '通用PC终端', '通用桌面PC终端，固定1无线+1网络', '1×WLAN+1×GE'],
+        [7, 1, '通用笔记本终端', '通用笔记本终端，固定1无线+1网络', '1×WLAN+1×GE'],
+      ]
+      for (const d of newDevices) {
+        migrateDevice.run(...d)
+      }
+      console.log('V0.9.3 migration: added PC/Laptop categories and devices')
+    }
+    return
+  }
 
   // Insert categories
   const insertCategory = db.prepare(
@@ -15,6 +48,8 @@ export function seedData(db: Database.Database): void {
     ['无线控制器', 'ac', 3],
     ['无线接入点', 'ap', 4],
     ['服务器', 'server', 5],
+    ['终端-PC', 'pc', 6],           // V0.9.3
+    ['终端-笔记本', 'laptop', 7],   // V0.9.3
   ]
   for (const cat of categories) {
     insertCategory.run(...cat)
@@ -28,6 +63,10 @@ export function seedData(db: Database.Database): void {
     ['Cisco', null],
     ['Ruijie', null],
     ['Aruba', null],
+    ['Lenovo', null],    // V0.9.3
+    ['Dell', null],      // V0.9.3
+    ['HP', null],        // V0.9.3
+    ['Apple', null],     // V0.9.3
   ]
   for (const vendor of vendors) {
     insertVendor.run(...vendor)
@@ -82,6 +121,21 @@ export function seedData(db: Database.Database): void {
     [5, 2, 'KunLun 2280', 'Huawei 2U ARM 服务器，双路 Kunpeng 920', '2×25GE+4×GE'],
     [5, 3, 'UCS C220 M7', 'Cisco 1U 机架式服务器，双路 Intel Xeon', '2×25GE+2×GE'],
     [5, 4, 'RG-RCD4500 V3', 'Ruijie 云桌面服务器，双路 Intel Xeon', '2×10GE+2×GE'],
+
+    // V0.9.3: 终端-PC (category_id=6)
+    [6, 6, 'ThinkCentre M70t', 'Lenovo 商用台式机，i5/16GB/512GB', '1×WLAN+1×GE'],
+    [6, 6, 'ThinkCentre M90t', 'Lenovo 高端台式机，i7/32GB/1TB', '1×WLAN+1×GE'],
+    [6, 7, 'OptiPlex 7000', 'Dell 商用台式机，i7/32GB/512GB', '1×WLAN+1×GE'],
+    [6, 8, 'EliteDesk 800 G9', 'HP 商用台式机，i5/16GB/256GB', '1×WLAN+1×GE'],
+    // V0.9.3: 终端-笔记本 (category_id=7)
+    [7, 6, 'ThinkPad X1 Carbon', 'Lenovo 商务旗舰笔记本', '1×WLAN+1×GE'],
+    [7, 6, 'ThinkPad T14', 'Lenovo 商用笔记本', '1×WLAN+1×GE'],
+    [7, 7, 'Latitude 7440', 'Dell 商务笔记本', '1×WLAN+1×GE'],
+    [7, 8, 'EliteBook 840 G10', 'HP 商务笔记本', '1×WLAN+1×GE'],
+    [7, 9, 'MacBook Pro 14', 'Apple 商务笔记本', '1×WLAN+1×GE'],
+    // V0.9.3: 通用终端（无厂商）
+    [6, 1, '通用PC终端', '通用桌面PC终端，固定1无线+1网络', '1×WLAN+1×GE'],
+    [7, 1, '通用笔记本终端', '通用笔记本终端，固定1无线+1网络', '1×WLAN+1×GE'],
   ]
 
   const insertDevice = db.prepare(

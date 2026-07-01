@@ -56,12 +56,20 @@ function AnimatedEdge({
 
   // ── Custom appearance (V0.2.1) ──────────────────────────────
   const isFiber = connectionType === 'fiber'
-  const customStrokeWidth = edgeData.strokeWidth ?? 3.5
-  const defaultColor = isFiber ? 'var(--color-edge-fiber)' : 'var(--color-edge-ethernet)'
+  const isStack = connectionType === 'stack'
+  const isWireless = connectionType === 'wireless'
+  const customStrokeWidth = edgeData.strokeWidth ?? (isStack ? 7 : 3.5)
+  const defaultColor = isStack
+    ? 'var(--color-edge-stack)'
+    : isWireless
+      ? 'var(--color-edge-wireless)'
+      : isFiber
+        ? 'var(--color-edge-fiber)'
+        : 'var(--color-edge-ethernet)'
   const customColor = edgeData.strokeColor || defaultColor
-  const effectColor = edgeData.effectColor || 'var(--color-edge-effect)'
-  const animSpeed = edgeData.animSpeed ?? 2
-  const baseParticleSize = edgeData.particleSize ?? 4.5
+  const effectColor = edgeData.effectColor || (isStack ? 'var(--color-edge-stack-effect)' : isWireless ? 'var(--color-edge-wireless-effect)' : 'var(--color-edge-effect)')
+  const animSpeed = edgeData.animSpeed ?? (isStack ? 1.5 : 2)
+  const baseParticleSize = edgeData.particleSize ?? (isStack ? 5.5 : 4.5)
   const elbowOffset = edgeData.elbowOffset ?? 50
 
   // ── Generate visual edge path (always source → target) ──────
@@ -84,7 +92,7 @@ function AnimatedEdge({
   // ── Line style ──────────────────────────────────────────────
   const strokeColor = selected ? 'var(--color-edge-selected)' : customColor
   const strokeWidth = selected ? customStrokeWidth + 0.5 : customStrokeWidth
-  const strokeDasharray = isFiber ? '12 6' : 'none'
+  const strokeDasharray = isFiber ? '12 6' : isWireless ? '8 4' : 'none'
 
   const animDuration = String(animSpeed)
 
@@ -270,6 +278,65 @@ function AnimatedEdge({
         </>
       )}
 
+      {/* V0.9.3: Wave animation — flowing signal-wave icons for wireless edges */}
+      {animationStyle === 'wave' && (
+        <>
+          {/* Primary wave — largest amplitude, full opacity */}
+          <g>
+            <animateMotion
+              dur={`${animDuration * 1.5}s`}
+              repeatCount="indefinite"
+              path={animPath}
+              rotate="auto"
+            />
+            <path
+              d="M-8 0 Q-4 -6 0 0 Q4 -5 8 0"
+              fill="none"
+              stroke={effectColor}
+              strokeWidth={Math.max(2, customStrokeWidth * 0.55)}
+              strokeLinecap="round"
+              opacity="0.85"
+            />
+          </g>
+          {/* Secondary wave — medium amplitude, staggered */}
+          <g>
+            <animateMotion
+              dur={`${animDuration * 1.5}s`}
+              repeatCount="indefinite"
+              begin="0.5s"
+              path={animPath}
+              rotate="auto"
+            />
+            <path
+              d="M-5 0 Q-2 -4 0 0 Q2 -3 5 0"
+              fill="none"
+              stroke={effectColor}
+              strokeWidth={Math.max(1.5, customStrokeWidth * 0.4)}
+              strokeLinecap="round"
+              opacity="0.55"
+            />
+          </g>
+          {/* Tertiary wave — smallest, further staggered */}
+          <g>
+            <animateMotion
+              dur={`${animDuration * 1.5}s`}
+              repeatCount="indefinite"
+              begin="0.3s"
+              path={animPath}
+              rotate="auto"
+            />
+            <path
+              d="M-3 0 Q-1 -2 0 0 Q1 -2 3 0"
+              fill="none"
+              stroke={effectColor}
+              strokeWidth={Math.max(1, customStrokeWidth * 0.3)}
+              strokeLinecap="round"
+              opacity="0.35"
+            />
+          </g>
+        </>
+      )}
+
       {/* Bandwidth label — SVG text with outline halo rendered after BaseEdge so it
           paints above the edge path (V0.8.4). paintOrder="stroke fill" renders the
           stroke behind the fill, creating a halo that ensures text readability
@@ -291,6 +358,27 @@ function AnimatedEdge({
           style={{ pointerEvents: 'none', userSelect: 'none' }}
         >
           {edgeData.bandwidth}
+        </text>
+      )}
+
+      {/* Cable length label — below bandwidth, same halo style (V0.9.2) */}
+      {edgeData.cableLength && (
+        <text
+          x={labelX}
+          y={labelY + (edgeData.bandwidth ? 13 : 0)}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={9}
+          fill="var(--color-text-secondary)"
+          stroke="var(--color-canvas)"
+          strokeWidth={3.5}
+          paintOrder="stroke fill"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fontFamily="'Microsoft YaHei', -apple-system, sans-serif"
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        >
+          {edgeData.cableLength}
         </text>
       )}
 

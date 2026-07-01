@@ -18,6 +18,9 @@ export interface PortHandleInfo {
   svgCenterX: number     // Port center X in SVG viewBox coordinates
   svgCenterY: number     // Port center Y in SVG viewBox coordinates
   isUsed: boolean        // Whether this port is already connected to an edge
+  /** V0.9.0: Connection direction override. Defaults to Position.Top.
+   *  STACK port at device bottom uses Position.Bottom to route downward. */
+  position?: Position
 }
 
 interface ConnectionHandlesProps {
@@ -71,19 +74,21 @@ export default function ConnectionHandles({ portHandleInfos, visible, svgOffset 
           transform: 'translate(-50%, -50%)',
         }
 
+        const handlePosition = info.position ?? Position.Top
+
         return (
           <span key={info.portLabel}>
             {/* Source handle — outgoing connections */}
             <Handle
               type="source"
-              position={Position.Top}
+              position={handlePosition}
               id={info.portLabel}
               style={baseStyle}
             />
             {/* Target handle — incoming connections (same position, different type) */}
             <Handle
               type="target"
-              position={Position.Top}
+              position={handlePosition}
               id={info.portLabel}
               style={baseStyle}
             />

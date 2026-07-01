@@ -12,6 +12,8 @@ const CATEGORY_ICONS: Record<string, string> = {
   ac: '📡',
   ap: '📶',
   server: '🖥️',
+  pc: '🖥️',
+  laptop: '💻',
   default: '📦',
 }
 
@@ -390,6 +392,8 @@ function getCategoryColor(categoryName: string): string {
     '无线控制器': 'var(--color-cat-ac-accent)',
     '无线接入点': 'var(--color-cat-ap-accent)',
     '服务器': 'var(--color-cat-server-accent)',
+    '终端-PC': 'var(--color-cat-pc-accent)',
+    '终端-笔记本': 'var(--color-cat-laptop-accent)',
   }
   return colors[categoryName] || 'var(--color-cat-default-accent)'
 }

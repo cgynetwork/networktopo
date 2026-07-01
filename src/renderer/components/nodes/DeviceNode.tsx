@@ -1,5 +1,5 @@
-import { memo, useLayoutEffect, useRef, useState } from 'react'
-import { NodeResizer, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
+import { memo, useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react'
+import { NodeResizer, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import type { DeviceRow, EdgeData } from '../../types'
 import { parsePortsInfo, getPortLayout, composePortsInfo, countLayoutRows } from '../../utils/portParser'
 import InlineEdit from './InlineEdit'
@@ -13,6 +13,8 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: stri
   '无线控制器': { bg: 'var(--color-cat-ac-bg)',       border: 'var(--color-cat-ac-border)',       accent: 'var(--color-cat-ac-accent)',       light: 'var(--color-cat-ac-light)' },
   '无线接入点': { bg: 'var(--color-cat-ap-bg)',       border: 'var(--color-cat-ap-border)',       accent: 'var(--color-cat-ap-accent)',       light: 'var(--color-cat-ap-light)' },
   '服务器':     { bg: 'var(--color-cat-server-bg)',   border: 'var(--color-cat-server-border)',   accent: 'var(--color-cat-server-accent)',   light: 'var(--color-cat-server-light)' },
+  '终端-PC':   { bg: 'var(--color-cat-pc-bg)',       border: 'var(--color-cat-pc-border)',       accent: 'var(--color-cat-pc-accent)',       light: 'var(--color-cat-pc-light)' },
+  '终端-笔记本': { bg: 'var(--color-cat-laptop-bg)',   border: 'var(--color-cat-laptop-border)',   accent: 'var(--color-cat-laptop-accent)',   light: 'var(--color-cat-laptop-light)' },
 }
 
 const DEFAULT_COLOR = { bg: 'var(--color-cat-default-bg)', border: 'var(--color-cat-default-border)', accent: 'var(--color-cat-default-accent)', light: 'var(--color-cat-default-light)' }
@@ -31,6 +33,9 @@ export interface DeviceNodeData {
   customColor?: string
   description?: string
   ipAddress?: string
+  isStacked?: boolean           // V0.9.0: 设备堆叠模式
+  portZeroBased?: boolean        // V0.9.1: GE0 起始编号
+  portInterleaved?: boolean      // V0.9.1: 交错编号（列优先）
 }
 
 // ── DeviceNode ─────────────────────────────────────────────────
@@ -54,12 +59,15 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const nodeData = data as unknown as DeviceNodeData
   const { device } = nodeData
   const [isHovered, setIsHovered] = useState(false)
+  // V0.9.3: Business description tooltip (3-second hover)
+  const [showBusinessTooltip, setShowBusinessTooltip] = useState(false)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // V0.8.0: Access edges for used-port tracking and measure SVG offset
   const { getEdges } = useReactFlow()
   const nodeOuterRef = useRef<HTMLDivElement>(null)
   const svgContainerRef = useRef<HTMLDivElement>(null)
-  const [svgOffset, setSvgOffset] = useState({ left: 24, top: 40 }) // analytical fallback
+  const [svgOffset, setSvgOffset] = useState<{ left: number; top: number } | null>(null)
 
   const colors = CATEGORY_COLORS[device.category_name] || DEFAULT_COLOR
   const showBorder = selected || isHovered
@@ -105,7 +113,10 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const portLayoutAvailableW = layoutParams.portPanelSvgW - 24
   const portLayoutAvailableH = Math.max(40, layoutParams.bodyH - 12)
   const portLayout = portGroups.length > 0
-    ? getPortLayout(portGroups, portLayoutAvailableW, portLayoutAvailableH)
+    ? getPortLayout(portGroups, portLayoutAvailableW, portLayoutAvailableH, {
+        zeroBased: nodeData.portZeroBased,
+        interleaved: nodeData.portInterleaved,
+      })
     : { ports: [], rows: 0 }
 
   // Build per-port handle info with edge-tracking
@@ -123,6 +134,19 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
     })
     return { portLabel, svgCenterX, svgCenterY, isUsed }
   })
+
+  // V0.9.0: Append STACK port handle when stacking is enabled
+  if (nodeData.isStacked) {
+    const stackHandleX = layoutParams.panelX + svgW / 2
+    const stackHandleY = layoutParams.bodyY + layoutParams.bodyH - 10
+    portHandleInfos.push({
+      portLabel: 'STACK',
+      svgCenterX: stackHandleX,
+      svgCenterY: stackHandleY,
+      isUsed: true,
+      position: Position.Bottom,   // V0.9.0: route downward away from device ports
+    })
+  }
 
   // Build used-port set for SVG LED highlighting
   const usedPorts = new Set(portHandleInfos.filter(p => p.isUsed).map(p => p.portLabel))
@@ -147,10 +171,23 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   // to re-measure handle positions via getBoundingClientRect (getHandleBounds).
   // Without this, React Flow's internal handleBounds are stale, causing edge
   // endpoints to be offset from actual port centers.
+  // V0.9.0: Re-measure when the handle list changes (e.g. STACK toggle
+  // adds/removes a handle). Without this, newly added handles won't accept
+  // connections because React Flow doesn't know their bounding rects.
+  const handleFingerprint = portHandleInfos.map(p => p.portLabel).join(',')
   const updateNodeInternals = useUpdateNodeInternals()
   useLayoutEffect(() => {
-    updateNodeInternals(id)
-  }, [svgOffset, id, updateNodeInternals])
+    if (svgOffset) {
+      updateNodeInternals(id)
+    }
+  }, [svgOffset, id, updateNodeInternals, handleFingerprint])
+
+  // V0.9.3: Cleanup hover timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    }
+  }, [])
 
   return (
     <div
@@ -169,8 +206,23 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
             ? 'var(--color-node-shadow-hover)'
             : 'none',
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        setIsHovered(true)
+        // V0.9.3: 3-second hover → business description tooltip
+        if (nodeData.businessNote) {
+          hoverTimerRef.current = setTimeout(() => {
+            setShowBusinessTooltip(true)
+          }, 3000)
+        }
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false)
+        setShowBusinessTooltip(false)
+        if (hoverTimerRef.current) {
+          clearTimeout(hoverTimerRef.current)
+          hoverTimerRef.current = null
+        }
+      }}
     >
       {/* Node resizer — allows manual resize */}
       <NodeResizer
@@ -192,11 +244,13 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
       />
 
       {/* Connection handles — V0.8.0: port-level handles on each port */}
-      <ConnectionHandles
-        portHandleInfos={portHandleInfos}
-        visible={showHandles}
-        svgOffset={svgOffset}
-      />
+      {svgOffset && (
+        <ConnectionHandles
+          portHandleInfos={portHandleInfos}
+          visible={showHandles}
+          svgOffset={svgOffset}
+        />
+      )}
 
       {/* Header bar */}
       <div
@@ -224,7 +278,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
 
       {/* Device illustration — always SVG, device image is shown in PropertyPanel only */}
       <div ref={svgContainerRef} className="px-2 py-2 flex justify-center bg-surface">
-        <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} ports={portLayout.ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
+        <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} ports={portLayout.ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={nodeData.isStacked} />
       </div>
 
       {/* Device info */}
@@ -250,6 +304,23 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
           {displayPorts || <span className="text-text-secondary italic">无端口信息</span>}
         </div>
       </div>
+
+      {/* V0.9.3: Business description tooltip (3-second hover) */}
+      {showBusinessTooltip && nodeData.businessNote && (
+        <div
+          className="absolute z-50 w-56 p-3 bg-surface border border-border rounded-lg shadow-lg pointer-events-none"
+          style={{
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginTop: 8,
+          }}
+        >
+          <div className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">
+            {nodeData.businessNote}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

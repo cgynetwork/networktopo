@@ -8,6 +8,7 @@ import { getDefaultPortLabel, listAllPorts, composePortsInfo, parseModularPorts 
 interface PropertyPanelProps {
   selectedNode: Node | null
   selectedEdge: Edge | null
+  selectedCount?: number
   nodes?: Node[]
   edges?: Edge[]
   onClose: () => void
@@ -18,6 +19,7 @@ interface PropertyPanelProps {
 export default function PropertyPanel({
   selectedNode,
   selectedEdge,
+  selectedCount,
   nodes,
   edges,
   onClose,
@@ -35,6 +37,7 @@ export default function PropertyPanel({
   const [direction, setDirection] = useState<EdgeData['direction']>('forward')
   const [pathStyle, setPathStyle] = useState<PathStyle>('adaptive')
   const [bandwidth, setBandwidth] = useState('')
+  const [cableLength, setCableLength] = useState('')
   const [sourcePort, setSourcePort] = useState('')
   const [targetPort, setTargetPort] = useState('')
   const [strokeWidth, setStrokeWidth] = useState(3.5)
@@ -55,6 +58,13 @@ export default function PropertyPanel({
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
   const [elbowOffset, setElbowOffset] = useState(50)
+  // V0.9.0: Device stacking
+  const [isStacked, setIsStacked] = useState(false)
+  // V0.9.1: Port numbering options
+  const [portZeroBased, setPortZeroBased] = useState(false)
+  const [portInterleaved, setPortInterleaved] = useState(false)
+  // V0.9.3: Business description note
+  const [businessNote, setBusinessNote] = useState('')
 
   // Sync local state when selected node changes
   useEffect(() => {
@@ -82,6 +92,10 @@ export default function PropertyPanel({
       }
       setCustomColor(nodeData.customColor || '')
       setCustomImage(nodeData.customImage || '')
+      setIsStacked(nodeData.isStacked ?? false)
+      setPortZeroBased(nodeData.portZeroBased ?? false)
+      setPortInterleaved(nodeData.portInterleaved ?? false)
+      setBusinessNote(nodeData.businessNote || '')
     }
   }, [selectedNode?.id, nodeData]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -93,6 +107,7 @@ export default function PropertyPanel({
       setDirection(edgeData.direction || 'forward')
       setPathStyle(edgeData.pathStyle || 'adaptive')
       setBandwidth(edgeData.bandwidth || '')
+      setCableLength(edgeData.cableLength || '')
       setSourcePort(edgeData.sourcePort || '')
       setTargetPort(edgeData.targetPort || '')
       setStrokeWidth(edgeData.strokeWidth ?? 3.5)
@@ -160,6 +175,13 @@ export default function PropertyPanel({
     }
   }, [selectedNode, description, onUpdateNodeData])
 
+  // V0.9.3: Business description note
+  const handleBusinessNoteChange = useCallback(() => {
+    if (selectedNode && onUpdateNodeData) {
+      onUpdateNodeData(selectedNode.id, { businessNote: businessNote || undefined })
+    }
+  }, [selectedNode, businessNote, onUpdateNodeData])
+
   const handleCustomCategoryChange = useCallback(() => {
     if (selectedNode && onUpdateNodeData) {
       onUpdateNodeData(selectedNode.id, { customCategory: customCategory || undefined })
@@ -221,6 +243,38 @@ export default function PropertyPanel({
   }, [selectedEdge, nodes, onUpdateEdgeData])
 
   if (!selectedNode && !selectedEdge) {
+    // V0.10.0: Multi-selection overview
+    if (selectedCount && selectedCount > 1) {
+      return (
+        <div className="h-full bg-panel border-l border-border flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold text-text-primary">多选模式</h3>
+            <button
+              onClick={onClose}
+              className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary text-xs"
+              title="关闭面板"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div className="text-4xl font-bold text-select-border">{selectedCount}</div>
+              <p className="text-xs text-text-secondary">个设备已选中</p>
+              <div className="border-t border-border pt-3 mt-3">
+                <p className="text-2xs text-text-secondary">
+                  按 <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-2xs font-mono">Esc</kbd> 取消全部选中
+                </p>
+                <p className="text-2xs text-text-secondary mt-1.5">
+                  使用工具栏对齐 / 分布按钮调整设备布局
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="h-full bg-panel border-l border-border p-4">
         <p className="text-xs text-text-secondary">未选中任何元素</p>
@@ -399,6 +453,114 @@ export default function PropertyPanel({
               </p>
             </div>
 
+            {/* ── V0.9.0: Device Stacking Toggle ── */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🔗 堆叠模式
+              </label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-secondary">
+                  启用设备堆叠
+                </span>
+                <button
+                  type="button"
+                  className={`w-10 h-5 rounded-full transition-colors relative overflow-hidden ${
+                    isStacked
+                      ? 'bg-select-border'
+                      : ''
+                  }`}
+                  style={isStacked ? {} : { backgroundColor: 'var(--color-device-body-stroke)' }}
+                  onClick={() => {
+                    const newVal = !isStacked
+                    setIsStacked(newVal)
+                    onUpdateNodeData?.(selectedNode!.id, { isStacked: newVal || undefined })
+                  }}
+                >
+                  <span
+                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      isStacked ? 'translate-x-[22px]' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+              {isStacked && (
+                <p className="text-2xs text-text-secondary mt-1.5">
+                  STACK 端口已显示在设备底部，可连接至另一台堆叠设备
+                </p>
+              )}
+            </div>
+
+            {/* ── V0.9.1: Port numbering options ── */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🔢 端口编号规则
+              </label>
+
+              {/* 零基编号 toggle */}
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs text-text-secondary">
+                  从 GE0 开始编号
+                </span>
+                <button
+                  type="button"
+                  className={`w-10 h-5 rounded-full transition-colors relative overflow-hidden ${
+                    portZeroBased
+                      ? 'bg-select-border'
+                      : ''
+                  }`}
+                  style={portZeroBased ? {} : { backgroundColor: 'var(--color-device-body-stroke)' }}
+                  onClick={() => {
+                    const newVal = !portZeroBased
+                    setPortZeroBased(newVal)
+                    onUpdateNodeData?.(selectedNode!.id, { portZeroBased: newVal || undefined })
+                  }}
+                >
+                  <span
+                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      portZeroBased ? 'translate-x-[22px]' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+              {portZeroBased && (
+                <p className="text-2xs text-text-secondary -mt-1.5 mb-2">
+                  端口将从 GE0、SFP0... 开始编号
+                </p>
+              )}
+
+              {/* 端口对调 (interleaved) toggle */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-secondary">
+                  端口对调（列优先交错）
+                </span>
+                <button
+                  type="button"
+                  className={`w-10 h-5 rounded-full transition-colors relative overflow-hidden ${
+                    portInterleaved
+                      ? 'bg-select-border'
+                      : ''
+                  }`}
+                  style={portInterleaved ? {} : { backgroundColor: 'var(--color-device-body-stroke)' }}
+                  onClick={() => {
+                    const newVal = !portInterleaved
+                    setPortInterleaved(newVal)
+                    onUpdateNodeData?.(selectedNode!.id, { portInterleaved: newVal || undefined })
+                  }}
+                >
+                  <span
+                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      portInterleaved ? 'translate-x-[22px]' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+              {portInterleaved && (
+                <p className="text-2xs text-text-secondary mt-1.5">
+                  多行端口按列交错编号，避免上行/下行端口号混淆
+                </p>
+              )}
+            </div>
+
             {/* 设备真机 — V0.7.0 */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
@@ -482,6 +644,18 @@ export default function PropertyPanel({
               />
             </div>
 
+            {/* V0.9.3: Business description note — shown on 3-second device hover */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">业务描述</label>
+              <textarea
+                className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
+                value={businessNote}
+                onChange={(e) => setBusinessNote(e.target.value)}
+                onBlur={handleBusinessNoteChange}
+                placeholder="管理IP、上联接口模式、业务接口规划、下联VLAN信息..."
+              />
+            </div>
+
             {/* Device description from database (editable) */}
             {nodeData.device.description !== undefined && (
               <div>
@@ -525,6 +699,8 @@ export default function PropertyPanel({
               >
                 <option value="ethernet">网线 (实线)</option>
                 <option value="fiber">光纤 (虚线)</option>
+                <option value="stack">堆叠线缆 (粗实线)</option>
+                <option value="wireless">无线 (信号波)</option>
               </select>
             </div>
             <div>
@@ -616,6 +792,7 @@ export default function PropertyPanel({
                 <option value="none">静态</option>
                 <option value="particle">动态 — 粒子流动</option>
                 <option value="glow">动态 — 光带流动</option>
+                <option value="wave">动态 — 信号波纹</option>
               </select>
             </div>
             <div>
@@ -827,7 +1004,11 @@ export default function PropertyPanel({
                 const srcNode = nodes.find(n => n.id === selectedEdge.source)
                 const srcDevice = getDeviceFromNode(srcNode!)
                 const srcPortsInfo = getNodeData(srcNode!)?.customPorts || srcDevice?.ports_info || ''
-                const portList = listAllPorts(srcPortsInfo)
+                const srcNodeData = getNodeData(srcNode!)
+                const portList = listAllPorts(srcPortsInfo, {
+                  zeroBased: srcNodeData?.portZeroBased,
+                  interleaved: srcNodeData?.portInterleaved,
+                })
                 if (portList.length === 0) return null
                 // V0.8.0: Mark ports already used by other edges on this node as unavailable
                 const usedSourcePorts = new Set(
@@ -882,7 +1063,11 @@ export default function PropertyPanel({
                 const tgtNode = nodes.find(n => n.id === selectedEdge.target)
                 const tgtDevice = getDeviceFromNode(tgtNode!)
                 const tgtPortsInfo = getNodeData(tgtNode!)?.customPorts || tgtDevice?.ports_info || ''
-                const portList = listAllPorts(tgtPortsInfo)
+                const tgtNodeData = getNodeData(tgtNode!)
+                const portList = listAllPorts(tgtPortsInfo, {
+                  zeroBased: tgtNodeData?.portZeroBased,
+                  interleaved: tgtNodeData?.portInterleaved,
+                })
                 if (portList.length === 0) return null
                 // V0.8.0: Mark ports already used by other edges on this node as unavailable
                 const usedTargetPorts = new Set(
@@ -921,6 +1106,19 @@ export default function PropertyPanel({
                   onUpdateEdgeData?.(selectedEdge.id, { bandwidth: e.target.value })
                 }}
                 placeholder="如 10Gbps"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">线缆长度</label>
+              <input
+                type="text"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                value={cableLength}
+                onChange={(e) => {
+                  setCableLength(e.target.value)
+                  onUpdateEdgeData?.(selectedEdge.id, { cableLength: e.target.value })
+                }}
+                placeholder="如 0.3M"
               />
             </div>
           </div>

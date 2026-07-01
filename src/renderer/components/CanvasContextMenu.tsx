@@ -3,7 +3,7 @@ import type { PathStyle } from '../types'
 export interface ContextMenuState {
   x: number
   y: number
-  type: 'edge' | 'node'
+  type: 'edge' | 'node' | 'batch'
   id: string
 }
 
@@ -13,6 +13,7 @@ interface CanvasContextMenuProps {
   onEdgePathStyle: (style: PathStyle) => void
   onDeleteEdge: () => void
   onDeleteNode: () => void
+  onDeleteBatch: () => void
 }
 
 export default function CanvasContextMenu({
@@ -21,6 +22,7 @@ export default function CanvasContextMenu({
   onEdgePathStyle,
   onDeleteEdge,
   onDeleteNode,
+  onDeleteBatch,
 }: CanvasContextMenuProps) {
   return (
     <>
@@ -77,6 +79,15 @@ export default function CanvasContextMenu({
           >
             <span>🗑️</span>
             <span>删除设备及相关线缆</span>
+          </button>
+        )}
+        {contextMenu.type === 'batch' && (
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-danger hover:bg-danger-bg transition-colors flex items-center gap-2"
+            onClick={onDeleteBatch}
+          >
+            <span>🗑️</span>
+            <span>删除选中设备及线缆</span>
           </button>
         )}
       </div>

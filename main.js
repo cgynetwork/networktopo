@@ -60,7 +60,37 @@ function initSchema(db) {
 
 function seedData(db) {
   const count = db.prepare('SELECT COUNT(*) as cnt FROM categories').get()
-  if (count.cnt > 0) return
+  if (count.cnt > 0) {
+    // V0.9.3: Incremental migration — add new categories if missing
+    const pcCount = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name = '终端-PC'").get()
+    if (pcCount.cnt === 0) {
+      const migrateCat = db.prepare('INSERT OR IGNORE INTO categories (name, icon, sort_order) VALUES (?, ?, ?)')
+      migrateCat.run('终端-PC', 'pc', 6)
+      migrateCat.run('终端-笔记本', 'laptop', 7)
+      const migrateVendor = db.prepare('INSERT OR IGNORE INTO vendors (name, logo_path) VALUES (?, ?)')
+      migrateVendor.run('Lenovo', null)
+      migrateVendor.run('Dell', null)
+      migrateVendor.run('HP', null)
+      migrateVendor.run('Apple', null)
+      const migrateDev = db.prepare('INSERT OR IGNORE INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const newDevices = [
+        [6, 6, 'ThinkCentre M70t', 'Lenovo 商用台式机，i5/16GB/512GB', '1×WLAN+1×GE'],
+        [6, 6, 'ThinkCentre M90t', 'Lenovo 高端台式机，i7/32GB/1TB', '1×WLAN+1×GE'],
+        [6, 7, 'OptiPlex 7000', 'Dell 商用台式机，i7/32GB/512GB', '1×WLAN+1×GE'],
+        [6, 8, 'EliteDesk 800 G9', 'HP 商用台式机，i5/16GB/256GB', '1×WLAN+1×GE'],
+        [7, 6, 'ThinkPad X1 Carbon', 'Lenovo 商务旗舰笔记本', '1×WLAN+1×GE'],
+        [7, 6, 'ThinkPad T14', 'Lenovo 商用笔记本', '1×WLAN+1×GE'],
+        [7, 7, 'Latitude 7440', 'Dell 商务笔记本', '1×WLAN+1×GE'],
+        [7, 8, 'EliteBook 840 G10', 'HP 商务笔记本', '1×WLAN+1×GE'],
+        [7, 9, 'MacBook Pro 14', 'Apple 商务笔记本', '1×WLAN+1×GE'],
+        [6, 1, '通用PC终端', '通用桌面PC终端，固定1无线+1网络', '1×WLAN+1×GE'],
+        [7, 1, '通用笔记本终端', '通用笔记本终端，固定1无线+1网络', '1×WLAN+1×GE'],
+      ]
+      for (const d of newDevices) migrateDev.run(...d)
+      console.log('V0.9.3 migration: added PC/Laptop categories and devices')
+    }
+    return
+  }
 
   // Categories
   const insertCat = db.prepare('INSERT INTO categories (name, icon, sort_order) VALUES (?, ?, ?)')
@@ -70,6 +100,8 @@ function seedData(db) {
     ['无线控制器', 'ac', 3],
     ['无线接入点', 'ap', 4],
     ['服务器', 'server', 5],
+    ['终端-PC', 'pc', 6],           // V0.9.3
+    ['终端-笔记本', 'laptop', 7],   // V0.9.3
   ]
   for (const c of categories) insertCat.run(...c)
 
@@ -77,6 +109,7 @@ function seedData(db) {
   const insertVendor = db.prepare('INSERT INTO vendors (name, logo_path) VALUES (?, ?)')
   const vendors = [
     ['H3C', null], ['Huawei', null], ['Cisco', null], ['Ruijie', null], ['Aruba', null],
+    ['Lenovo', null], ['Dell', null], ['HP', null], ['Apple', null],  // V0.9.3
   ]
   for (const v of vendors) insertVendor.run(...v)
 
@@ -128,6 +161,20 @@ function seedData(db) {
     [5, 2, 'KunLun 2280', 'Huawei 2U ARM 服务器，双路Kunpeng 920', '2×25GE+4×GE'],
     [5, 3, 'UCS C220 M7', 'Cisco 1U 机架式服务器，双路Intel Xeon', '2×25GE+2×GE'],
     [5, 4, 'RG-RCD4500 V3', 'Ruijie 云桌面服务器，双路Intel Xeon', '2×10GE+2×GE'],
+    // V0.9.3: 终端-PC (category_id=6)
+    [6, 6, 'ThinkCentre M70t', 'Lenovo 商用台式机，i5/16GB/512GB', '1×WLAN+1×GE'],
+    [6, 6, 'ThinkCentre M90t', 'Lenovo 高端台式机，i7/32GB/1TB', '1×WLAN+1×GE'],
+    [6, 7, 'OptiPlex 7000', 'Dell 商用台式机，i7/32GB/512GB', '1×WLAN+1×GE'],
+    [6, 8, 'EliteDesk 800 G9', 'HP 商用台式机，i5/16GB/256GB', '1×WLAN+1×GE'],
+    // V0.9.3: 终端-笔记本 (category_id=7)
+    [7, 6, 'ThinkPad X1 Carbon', 'Lenovo 商务旗舰笔记本', '1×WLAN+1×GE'],
+    [7, 6, 'ThinkPad T14', 'Lenovo 商用笔记本', '1×WLAN+1×GE'],
+    [7, 7, 'Latitude 7440', 'Dell 商务笔记本', '1×WLAN+1×GE'],
+    [7, 8, 'EliteBook 840 G10', 'HP 商务笔记本', '1×WLAN+1×GE'],
+    [7, 9, 'MacBook Pro 14', 'Apple 商务笔记本', '1×WLAN+1×GE'],
+    // V0.9.3: 通用终端
+    [6, 1, '通用PC终端', '通用桌面PC终端，固定1无线+1网络', '1×WLAN+1×GE'],
+    [7, 1, '通用笔记本终端', '通用笔记本终端，固定1无线+1网络', '1×WLAN+1×GE'],
   ]
   const insertAll = db.transaction(() => { for (const d of devices) insertDev.run(...d) })
   insertAll()
@@ -534,7 +581,7 @@ const menuTemplate = [
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
-    title: 'Topo V0.6.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
+    title: 'Topo V0.10.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
     webPreferences: {
       preload: path.join(__dirname, 'out', 'preload', 'index.js'),
       sandbox: false, contextIsolation: true, nodeIntegration: false,

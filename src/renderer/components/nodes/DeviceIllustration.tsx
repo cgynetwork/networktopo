@@ -55,8 +55,22 @@ export function getDeviceLayoutParams(categoryName: string, svgW: number, svgH: 
       const bodyW = Math.round(svgW * 0.64)
       return { bodyY, bodyH, panelX: 0, portPanelSvgW: bodyW, portPanelBodyY: bodyY + 18 }
     }
-    case '服务器':
-      return { bodyY: 8, bodyH: svgH - 16, panelX: 0, portPanelSvgW: svgW, portPanelBodyY: 8 + 20 }
+    case '服务器': {
+      const rightPanelW = Math.round(svgW * 0.30)
+      return { bodyY: 8, bodyH: svgH - 16, panelX: 0, portPanelSvgW: svgW - rightPanelW - 4, portPanelBodyY: 8 }
+    }
+    // V0.9.3: PC terminal — tower chassis with ports at bottom
+    case '终端-PC': {
+      const bodyW = Math.round(svgW * 0.72)
+      const bodyX = (svgW - bodyW) / 2
+      return { bodyY: 66, bodyH: svgH - 74, panelX: bodyX, portPanelSvgW: bodyW, portPanelBodyY: 66 }
+    }
+    // V0.9.3: Laptop terminal — ports on base
+    case '终端-笔记本': {
+      const lidH = Math.round(svgH * 0.55)
+      const baseY = lidH + 14
+      return { bodyY: baseY, bodyH: svgH - baseY - 8, panelX: 0, portPanelSvgW: svgW - 16, portPanelBodyY: baseY + 4 }
+    }
     default:
       return { bodyY: 8, bodyH: svgH - 16, panelX: 0, portPanelSvgW: svgW, portPanelBodyY: 8 }
   }
@@ -75,6 +89,8 @@ function getPortColors(cat: RenderedPort['category']): { fill: string; stroke: s
       return { fill: 'var(--color-port-qsfp-fill)', stroke: 'var(--color-port-qsfp-stroke)' }
     case 'mgmt':
       return { fill: 'var(--color-port-mgmt-fill)', stroke: 'var(--color-port-mgmt-stroke)' }
+    case 'wlan':
+      return { fill: 'var(--color-port-wlan-fill)', stroke: 'var(--color-port-wlan-stroke)' }
   }
 }
 
@@ -110,7 +126,7 @@ function PortRect({ port, isUsed }: { port: RenderedPort; isUsed?: boolean }) {
         fontFamily="'Microsoft YaHei', sans-serif"
         fontWeight={500}
       >
-        {port.typeLabel}{port.portIndex}
+        {port.category === 'wlan' ? 'WLAN' : `${port.typeLabel}${port.portIndex}`}
       </text>
       {/* LED indicator — left side: green when connected, dim otherwise */}
       <circle
@@ -120,8 +136,8 @@ function PortRect({ port, isUsed }: { port: RenderedPort; isUsed?: boolean }) {
         fill={isUsed ? 'var(--color-port-led-link)' : 'var(--color-device-body-stroke)'}
         opacity={isUsed ? 1 : 0.5}
       />
-      {/* LED indicator — right side (activity) */}
-      {port.category !== 'mgmt' && (
+      {/* LED indicator — right side (activity), skip for mgmt and wlan */}
+      {port.category !== 'mgmt' && port.category !== 'wlan' && (
         <circle
           cx={port.x + port.width - 2.5}
           cy={y + 2.5}
@@ -221,8 +237,8 @@ function StatusLEDs({ svgW, accent }: { svgW: number; accent: string }) {
 
 // ── Per-category enhanced SVGs ─────────────────────────────────
 
-function SwitchSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
-  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+function SwitchSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number; isStacked?: boolean
 }) {
   const { bodyY, bodyH, panelX, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('交换机', svgW, svgH)
   return (
@@ -241,12 +257,14 @@ function SwitchSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
       <StatusLEDs svgW={svgW} accent={accent} />
       {/* Ports */}
       <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH} bodyY={portPanelBodyY} panelX={panelX} />
+      {/* V0.9.0: STACK port */}
+      {isStacked && <StackPort panelX={panelX} panelBodyW={portPanelSvgW} bodyY={bodyY} bodyH={bodyH} />}
     </svg>
   )
 }
 
-function FirewallSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
-  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+function FirewallSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number; isStacked?: boolean
 }) {
   const { bodyY, bodyH, panelX, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('防火墙', svgW, svgH)
   const leftPanelW = Math.round(svgW * 0.18)
@@ -276,12 +294,14 @@ function FirewallSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
       <StatusLEDs svgW={svgW} accent={accent} />
       {/* Port zone — offset by left panel width */}
       <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH} bodyY={portPanelBodyY} panelX={panelX} />
+      {/* V0.9.0: STACK port */}
+      {isStacked && <StackPort panelX={panelX} panelBodyW={portPanelSvgW} bodyY={bodyY} bodyH={bodyH} />}
     </svg>
   )
 }
 
-function AcSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
-  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+function AcSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number; isStacked?: boolean
 }) {
   const { bodyY, bodyH, panelX, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('无线控制器', svgW, svgH)
   const leftPanelW = Math.round(svgW * 0.18)
@@ -307,12 +327,14 @@ function AcSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
       <ScrewHoles svgW={svgW} svgH={svgH} />
       <StatusLEDs svgW={svgW} accent={accent} />
       <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH} bodyY={portPanelBodyY} panelX={panelX} />
+      {/* V0.9.0: STACK port */}
+      {isStacked && <StackPort panelX={panelX} panelBodyW={portPanelSvgW} bodyY={bodyY} bodyH={bodyH} />}
     </svg>
   )
 }
 
-function ApSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
-  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+function ApSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number; isStacked?: boolean
 }) {
   const { bodyY, bodyH, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('无线接入点', svgW, svgH)
   const bodyX = Math.round(svgW * 0.18)
@@ -343,14 +365,18 @@ function ApSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
       <rect x={bodyX + 14} y={bodyY + 12} width={bodyW - 28} height="3" rx="1" fill={accent} opacity="0.4" />
       {/* Downlink ports */}
       <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH - 18} bodyY={portPanelBodyY} />
+      {/* V0.9.0: STACK port — centered on AP body */}
+      {isStacked && <StackPort panelX={bodyX} panelBodyW={bodyW} bodyY={bodyY} bodyH={bodyH} />}
     </svg>
   )
 }
 
-function ServerSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
-  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+function ServerSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number; isStacked?: boolean
 }) {
-  const { bodyY, bodyH, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('服务器', svgW, svgH)
+  const { bodyY, bodyH, panelX, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('服务器', svgW, svgH)
+  const rightPanelW = Math.round(svgW * 0.30)
+  const rightPanelX = svgW - rightPanelW - 4
   const driveBayW = Math.round(svgW * 0.32)
 
   return (
@@ -397,13 +423,157 @@ function ServerSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
       <text x={driveBayW + 38} y={bodyY + 14} fontSize="4" fill="var(--color-port-label-text)" textAnchor="middle">PSU1</text>
       <rect x={driveBayW + 60} y={bodyY + 8} width="28" height="8" rx="1" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.4" />
       <text x={driveBayW + 74} y={bodyY + 14} fontSize="4" fill="var(--color-port-label-text)" textAnchor="middle">PSU2</text>
-      {/* NIC ports area — V0.7.4: reduced vertical offset to give fiber ports more headroom */}
-      <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH - 20} bodyY={portPanelBodyY} />
+      {/* V0.9.3: Right-side NIC panel */}
+      <rect x={rightPanelX} y={bodyY + 8} width={rightPanelW} height={bodyH - 16} rx="2"
+        fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" />
+      {/* NIC label */}
+      <text x={rightPanelX + rightPanelW / 2} y={bodyY + 18} fontSize="4.5"
+        fill="var(--color-port-label-text)" textAnchor="middle"
+        fontFamily="'Microsoft YaHei', sans-serif">NIC</text>
+      {/* NIC slot indicators */}
+      {Array.from({ length: 4 }).map((_, i) => (
+        <rect key={`nic-slot-${i}`}
+          x={rightPanelX + 4}
+          y={bodyY + 24 + i * Math.floor((bodyH - 38) / 4)}
+          width={rightPanelW - 8}
+          height={Math.floor((bodyH - 38) / 5)}
+          rx="1.5"
+          fill="var(--color-device-body)"
+          stroke="var(--color-device-body-stroke)"
+          strokeWidth="0.4" />
+      ))}
+      {/* NIC ports area */}
+      <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH} bodyY={portPanelBodyY} panelX={panelX} />
+      {/* V0.9.0: STACK port */}
+      {isStacked && <StackPort panelX={panelX} panelBodyW={portPanelSvgW} bodyY={bodyY} bodyH={bodyH} />}
+    </svg>
+  )
+}
+
+// ── V0.9.3: PC Terminal SVG ──────────────────────────────────────
+
+function PcSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+}) {
+  const { bodyY, bodyH, panelX, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('终端-PC', svgW, svgH)
+  const bodyW = Math.round(svgW * 0.72)
+  const bodyX = (svgW - bodyW) / 2
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} width={svgW} height={svgH} xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="pc-body-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-device-body)" />
+          <stop offset="100%" stopColor="var(--color-device-secondary)" />
+        </linearGradient>
+      </defs>
+      {/* Tower body */}
+      <rect x={bodyX} y={bodyY - 52} width={bodyW} height={bodyH + 52} rx="6" fill="url(#pc-body-grad)" stroke="var(--color-device-body-stroke)" strokeWidth="1.5" />
+      {/* Front bezel accent */}
+      <rect x={bodyX} y={bodyY - 52} width={bodyW} height="5" rx="5" fill={accent} opacity="0.5" />
+      {/* Power LED */}
+      <circle cx={bodyX + 14} cy={bodyY - 40} r="2" fill="var(--color-device-led-green)" />
+      {/* Drive bay indicator */}
+      <rect x={bodyX + 10} y={bodyY - 30} width={bodyW - 20} height="6" rx="1.5" fill="var(--color-device-secondary)" stroke="var(--color-device-body-stroke)" strokeWidth="0.4" />
+      {/* Wireless antenna icon — left side of tower */}
+      <g transform={`translate(${bodyX + 24}, ${bodyY - 10})`}>
+        <path d="M-8 0 Q0 -8 8 0" fill="none" stroke={accent} strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M-5 4 Q0 -1 5 4" fill="none" stroke={accent} strokeWidth="1.3" strokeLinecap="round" opacity="0.65" />
+        <path d="M-2 8 Q0 5 2 8" fill="none" stroke={accent} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
+      </g>
+      {/* Ethernet/LAN icon — right side */}
+      <g transform={`translate(${bodyX + bodyW - 24}, ${bodyY - 12})`}>
+        <rect x="-5" y="-4" width="10" height="8" rx="1" fill="none" stroke="var(--color-device-body-stroke)" strokeWidth="1.2" />
+        <line x1="-3" y1="-1" x2="3" y2="-1" stroke="var(--color-device-body-stroke)" strokeWidth="0.8" />
+        <line x1="-3" y1="1" x2="3" y2="1" stroke="var(--color-device-body-stroke)" strokeWidth="0.8" />
+        <line x1="-3" y1="3" x2="3" y2="3" stroke="var(--color-device-body-stroke)" strokeWidth="0.8" />
+      </g>
+      {/* Port area */}
+      <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={bodyH} bodyY={portPanelBodyY} panelX={panelX} />
+    </svg>
+  )
+}
+
+// ── V0.9.3: Laptop Terminal SVG ──────────────────────────────────
+
+function LaptopSvg({ accent, portsInfo, ports, usedPorts, svgW, svgH }: {
+  accent: string; portsInfo: string; ports?: RenderedPort[]; usedPorts?: Set<string>; svgW: number; svgH: number
+}) {
+  const { bodyY, bodyH, panelX, portPanelSvgW, portPanelBodyY } = getDeviceLayoutParams('终端-笔记本', svgW, svgH)
+  const lidH = Math.round(svgH * 0.55)
+  const lidW = Math.round(svgW * 0.72)
+  const lidX = (svgW - lidW) / 2
+  const baseY = lidH + 10
+  const baseH = svgH - baseY - 8
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} width={svgW} height={svgH} xmlns="http://www.w3.org/2000/svg">
+      {/* Lid/screen panel */}
+      <rect x={lidX} y={6} width={lidW} height={lidH} rx="5" fill="var(--color-device-body)" stroke="var(--color-device-body-stroke)" strokeWidth="1.2" />
+      {/* Screen bezel */}
+      <rect x={lidX + 8} y={12} width={lidW - 16} height={lidH - 14} rx="2" fill="var(--color-surface)" stroke="var(--color-device-body-stroke)" strokeWidth="0.5" opacity="0.6" />
+      {/* Camera dot */}
+      <circle cx={svgW / 2} cy={10} r="1.2" fill="var(--color-device-body-stroke)" />
+      {/* Hinge */}
+      <rect x={lidX + 10} y={baseY - 3} width={lidW - 20} height="4" rx="1" fill="var(--color-device-body-stroke)" opacity="0.5" />
+      {/* Base/body */}
+      <rect x={lidX + 4} y={baseY} width={lidW - 8} height={baseH} rx="3" fill="url(#pc-body-grad)" stroke="var(--color-device-body-stroke)" strokeWidth="1.2" />
+      {/* Accent strip */}
+      <rect x={lidX + 4} y={baseY} width={lidW - 8} height="3" rx="3" fill={accent} opacity="0.4" />
+      {/* Power LED */}
+      <circle cx={lidX + 16} cy={baseY + 8} r="1.5" fill="var(--color-device-led-green)" />
+      {/* Wireless icon on base */}
+      <g transform={`translate(${lidX + 40}, ${baseY + 12})`}>
+        <path d="M-5 0 Q0 -5 5 0" fill="none" stroke={accent} strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M-3 3 Q0 0 3 3" fill="none" stroke={accent} strokeWidth="1.1" strokeLinecap="round" opacity="0.6" />
+      </g>
+      {/* Port area on base */}
+      <PortPanel portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={portPanelSvgW} bodyH={baseH} bodyY={portPanelBodyY} panelX={panelX} />
     </svg>
   )
 }
 
 // ── Dispatcher ──────────────────────────────────────────────────
+
+// ── V0.9.0: STACK port rendering ──────────────────────────────
+
+/** Render the STACK port at a consistent position inside the chassis */
+function StackPort({ panelX, panelBodyW, bodyY, bodyH }: {
+  panelX: number; panelBodyW: number; bodyY: number; bodyH: number
+}) {
+  const stackW = Math.max(64, panelBodyW * 0.42)
+  const stackH = 16
+  const stackX = panelX + (panelBodyW - stackW) / 2
+  const stackY = bodyY + bodyH - 18
+
+  return (
+    <g>
+      {/* STACK port body */}
+      <rect
+        x={stackX}
+        y={stackY}
+        width={stackW}
+        height={stackH}
+        rx={2}
+        fill="var(--color-port-stack-fill)"
+        stroke="var(--color-port-stack-stroke)"
+        strokeWidth={1.5}
+      />
+      {/* Port label */}
+      <text
+        x={stackX + stackW / 2}
+        y={stackY + stackH / 2 + 1.5}
+        fontSize={5.5}
+        fill="var(--color-port-stack-stroke)"
+        textAnchor="middle"
+        fontFamily="'Microsoft YaHei', sans-serif"
+        fontWeight={700}
+      >
+        STACK
+      </text>
+    </g>
+  )
+}
 
 interface DeviceIllustrationProps {
   categoryName: string
@@ -415,15 +585,19 @@ interface DeviceIllustrationProps {
   usedPorts?: Set<string>
   svgW: number
   svgH: number
+  /** V0.9.0: Device stacking mode */
+  isStacked?: boolean
 }
 
-export default function DeviceIllustration({ categoryName, accent, portsInfo, ports, usedPorts, svgW, svgH }: DeviceIllustrationProps) {
+export default function DeviceIllustration({ categoryName, accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked }: DeviceIllustrationProps) {
   switch (categoryName) {
-    case '交换机': return <SwitchSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
-    case '防火墙': return <FirewallSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
-    case '无线控制器': return <AcSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
-    case '无线接入点': return <ApSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
-    case '服务器': return <ServerSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
-    default: return <SwitchSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
+    case '交换机': return <SwitchSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={isStacked} />
+    case '防火墙': return <FirewallSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={isStacked} />
+    case '无线控制器': return <AcSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={isStacked} />
+    case '无线接入点': return <ApSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={isStacked} />
+    case '服务器': return <ServerSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={isStacked} />
+    case '终端-PC': return <PcSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
+    case '终端-笔记本': return <LaptopSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} />
+    default: return <SwitchSvg accent={accent} portsInfo={portsInfo} ports={ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={isStacked} />
   }
 }

@@ -57,6 +57,18 @@
   --color-edge-effect: #2196F3;
   --color-edge-selected: #2196F3;
 
+  /* V0.9.0: Stack cable */
+  --color-edge-stack: #1A1A1A;
+  --color-edge-stack-effect: #FF9800;
+
+  /* V0.9.0: STACK port */
+  --color-port-stack-fill: #2D2D2D;
+  --color-port-stack-stroke: #FF9800;
+
+  /* V0.9.3: Wireless edge */
+  --color-edge-wireless: #14B8A6;
+  --color-edge-wireless-effect: #2DD4BF;
+
   /* Device category colors — 防火墙 (red) */
   --color-cat-firewall-bg: #FEF2F2;
   --color-cat-firewall-border: #FECACA;
@@ -87,6 +99,18 @@
   --color-cat-server-accent: #F59E0B;
   --color-cat-server-light: #FEF3C7;
 
+  /* V0.9.3: Device category colors — 终端-PC (cyan/teal) */
+  --color-cat-pc-bg: #F0FDFA;
+  --color-cat-pc-border: #99F6E4;
+  --color-cat-pc-accent: #14B8A6;
+  --color-cat-pc-light: #CCFBF1;
+
+  /* V0.9.3: Device category colors — 终端-笔记本 (indigo) */
+  --color-cat-laptop-bg: #EEF2FF;
+  --color-cat-laptop-border: #C7D2FE;
+  --color-cat-laptop-accent: #6366F1;
+  --color-cat-laptop-light: #E0E7FF;
+
   /* Device category colors — default (gray) */
   --color-cat-default-bg: #FAFAFA;
   --color-cat-default-border: #E5E5E5;
@@ -104,6 +128,9 @@
   --color-port-teng-stroke: #5A70A0;
   --color-port-mgmt-fill: #6B6B6B;
   --color-port-mgmt-stroke: #9CA3AF;
+  /* V0.9.3: WLAN wireless port */
+  --color-port-wlan-fill: #0F766E;
+  --color-port-wlan-stroke: #14B8A6;
   --color-port-led-link: #22C55E;
   --color-port-led-activity: #F59E0B;
   --color-port-label-text: #9CA3AF;
@@ -168,6 +195,18 @@
   --color-edge-effect: #D4A574;
   --color-edge-selected: #D4A574;
 
+  /* V0.9.0: Stack cable */
+  --color-edge-stack: #D4D4D4;
+  --color-edge-stack-effect: #FFB74D;
+
+  /* V0.9.0: STACK port */
+  --color-port-stack-fill: #1A1528;
+  --color-port-stack-stroke: #D49848;
+
+  /* V0.9.3: Wireless edge */
+  --color-edge-wireless: #34D3A6;
+  --color-edge-wireless-effect: #5EE0BF;
+
   /* Device category colors — 防火墙 (deep crimson) */
   --color-cat-firewall-bg: #2D1518;
   --color-cat-firewall-border: #5A2025;
@@ -198,6 +237,18 @@
   --color-cat-server-accent: #D4A040;
   --color-cat-server-light: #2D2518;
 
+  /* V0.9.3: Device category colors — 终端-PC (dark teal) */
+  --color-cat-pc-bg: #152820;
+  --color-cat-pc-border: #254035;
+  --color-cat-pc-accent: #34D3A6;
+  --color-cat-pc-light: #1E3028;
+
+  /* V0.9.3: Device category colors — 终端-笔记本 (dark indigo) */
+  --color-cat-laptop-bg: #1A1835;
+  --color-cat-laptop-border: #2D2850;
+  --color-cat-laptop-accent: #7E7CF6;
+  --color-cat-laptop-light: #242048;
+
   /* Device category colors — default (dark slate) */
   --color-cat-default-bg: #1A2240;
   --color-cat-default-border: #3A3558;
@@ -215,6 +266,9 @@
   --color-port-teng-stroke: #3A4A68;
   --color-port-mgmt-fill: #3A3540;
   --color-port-mgmt-stroke: #6A6070;
+  /* V0.9.3: WLAN wireless port */
+  --color-port-wlan-fill: #134E4A;
+  --color-port-wlan-stroke: #2DD4BF;
   --color-port-led-link: #34D399;
   --color-port-led-activity: #D4A040;
   --color-port-label-text: #7A7080;

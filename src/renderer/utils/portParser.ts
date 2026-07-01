@@ -13,13 +13,13 @@ export interface ParsedPortGroup {
   count: number
   type: string
   /** Three-tier classification: copper | sfp | tenG (QSFP resolves to qsfp separately) */
-  category: 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt'
+  category: 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt' | 'wlan'
 }
 
 /** Metadata for rendering a port type in the enhanced SVG illustration */
 export interface PortTypeMetadata {
   abbreviation: string      // Short label shown on the port, e.g. "GE", "25G", "SFP+"
-  category: 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt'
+  category: 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt' | 'wlan'
   /** Visual width of this port type in the SVG layout (relative units) */
   visualWidth: number
 }
@@ -28,7 +28,7 @@ export interface PortTypeMetadata {
 export interface RenderedPort {
   type: string
   typeLabel: string
-  category: 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt'
+  category: 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt' | 'wlan'
   portIndex: number   // 1-based within its type group
   x: number
   y: number
@@ -47,8 +47,10 @@ export interface RenderedPort {
  * Copper tested first — combo types like "GE/SFP+" contain GE, so they stay copper.
  * SFP+ is tested before plain SFP to correctly classify as 万兆光纤.
  */
-export function classifyPortTypeV2(type: string): 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt' {
+export function classifyPortTypeV2(type: string): 'copper' | 'sfp' | 'tenG' | 'qsfp' | 'mgmt' | 'wlan' {
   const trimmed = type.trim()
+  // V0.9.3: WLAN → wireless port (test BEFORE copper)
+  if (/\bWLAN\b/.test(trimmed)) return 'wlan'
   // 网络端口 → copper (test first — combo ports like GE/SFP+ match here via GE)
   if (/\b(GE|FE|2\.?5GE|5GE|PoE)\b/.test(trimmed)) return 'copper'
   // QSFP → qsfp
@@ -147,18 +149,63 @@ export function getDefaultPortLabel(portsInfo: string): string {
  * Example: "8×GE+4×PoE+2×SFP" → ["GE1", "GE2", …, "GE12", "SFP1", "SFP2"]
  * Returns empty array for invalid input.
  */
-export function listAllPorts(portsInfo: string): string[] {
+export function listAllPorts(portsInfo: string, options?: PortLayoutOptions): string[] {
   const groups = parsePortsInfo(portsInfo)
   const ports: string[] = []
-  const counter: Record<string, number> = {}
+  const zeroBased = options?.zeroBased ?? false
+  const interleaved = options?.interleaved ?? false
+  const startIdx = zeroBased ? 0 : 1
+
+  // Collect total counts per abbreviation (counters are shared across
+  // groups with the same abbreviation, matching the visual layout).
+  const abbrCounts = new Map<string, number>()
+  const abbrOrder: string[] = []
   for (const g of groups) {
     const meta = getPortTypeMetadata(g.type)
     const abbr = meta.abbreviation
-    for (let i = 1; i <= g.count; i++) {
-      counter[abbr] = (counter[abbr] || 0) + 1
-      ports.push(`${abbr}${counter[abbr]}`)
+    const prev = abbrCounts.get(abbr) || 0
+    abbrCounts.set(abbr, prev + g.count)
+    if (!abbrOrder.includes(abbr)) abbrOrder.push(abbr)
+  }
+
+  for (const abbr of abbrOrder) {
+    const total = abbrCounts.get(abbr)!
+    if (interleaved) {
+      const maxPerRow = determineMaxPerRow(total)
+      const numRows = Math.ceil(total / maxPerRow)
+      if (numRows <= 1) {
+        for (let i = 0; i < total; i++) {
+          ports.push(`${abbr}${startIdx + i}`)
+        }
+      } else {
+        // Build row×col matrix with sequential values, then traverse
+        // column-major (alternating row direction per column).
+        const labels: string[] = []
+        let val = startIdx
+        for (let col = 0; col < maxPerRow; col++) {
+          const bottomFirst = col % 2 === 0
+          const rowOrder = bottomFirst
+            ? [...Array(numRows).keys()].reverse()
+            : [...Array(numRows).keys()]
+          for (const ri of rowOrder) {
+            const posInRow = col
+            const rowLen = ri < numRows - 1
+              ? maxPerRow
+              : total - (numRows - 1) * maxPerRow
+            if (posInRow < rowLen) {
+              labels.push(`${abbr}${val++}`)
+            }
+          }
+        }
+        ports.push(...labels)
+      }
+    } else {
+      for (let i = 0; i < total; i++) {
+        ports.push(`${abbr}${startIdx + i}`)
+      }
     }
   }
+
   return ports
 }
 
@@ -174,6 +221,11 @@ export function getPortTypeMetadata(type: string): PortTypeMetadata {
   //   QSFP (万兆光纤) — SFP+ / QSFP / 10GE / 25GE / 40GE / 100GE
   //   MGMT (管理口)   — Console / MGMT
   // Visual widths and internal categories remain differentiated for physical appearance.
+
+  // V0.9.3: WLAN — wireless port (teal, wider label)
+  if (/\bWLAN\b/.test(t)) {
+    return { abbreviation: 'WLAN', category: 'wlan', visualWidth: 24 }
+  }
 
   // QSFP / QSFP+ / QSFP28 — large high-speed fiber (widest, 28)
   if (/\bQSFP/.test(t)) {
@@ -434,10 +486,91 @@ function buildFiberRows(
  *
  * Returns an array of positioned individual ports ready to render.
  */
+// ── V0.9.1: Port numbering options ────────────────────────────
+
+export interface PortLayoutOptions {
+  /** When true, port numbering starts from 0 instead of 1. Default false (GE1-based). */
+  zeroBased?: boolean
+  /** When true, ports are numbered column-major with alternating row direction
+   *  per column (odd columns bottom→top, even columns top→bottom).
+   *  When false (default), ports are numbered row-major within each row. */
+  interleaved?: boolean
+}
+
+/**
+ * Reassign port indices based on numbering options.
+ *
+ * Row-major (default): ports sorted by y then x, numbered sequentially.
+ * Interleaved: ports grouped by abbreviation, built into a row×col matrix,
+ *   then numbered column-major — odd columns go bottom→top, even columns
+ *   go top→bottom.
+ */
+function reassignPortIndices(ports: RenderedPort[], options: PortLayoutOptions): void {
+  if (ports.length === 0) return
+  const startIndex = options.zeroBased ? 0 : 1
+
+  // Group by abbreviation (typeLabel) — each gets independent numbering
+  const byAbbr = new Map<string, RenderedPort[]>()
+  for (const p of ports) {
+    const list = byAbbr.get(p.typeLabel) || []
+    list.push(p)
+    byAbbr.set(p.typeLabel, list)
+  }
+
+  for (const [, group] of byAbbr) {
+    if (!options.interleaved) {
+      // Row-major: sort by y then x, assign sequential
+      group.sort((a, b) => a.y - b.y || a.x - b.x)
+      group.forEach((p, i) => { p.portIndex = startIndex + i })
+      continue
+    }
+
+    // ── Interleaved column-major with alternating row direction ──
+    // Detect rows from distinct y values
+    const yValues = [...new Set(group.map(p => p.y))].sort((a, b) => a - b)
+    const numRows = yValues.length
+
+    if (numRows <= 1) {
+      // Single row — same as row-major
+      group.sort((a, b) => a.x - b.x)
+      group.forEach((p, i) => { p.portIndex = startIndex + i })
+      continue
+    }
+
+    // Build row×col matrix: each row's ports sorted by x
+    const rows: RenderedPort[][] = yValues.map(() => [])
+    for (const p of group) {
+      const rowIdx = yValues.indexOf(p.y)
+      rows[rowIdx].push(p)
+    }
+    for (const row of rows) {
+      row.sort((a, b) => a.x - b.x)
+    }
+
+    // Column-major numbering with alternating row direction per column
+    const maxCols = Math.max(...rows.map(r => r.length))
+    let counter = startIndex
+    for (let col = 0; col < maxCols; col++) {
+      // Even columns (0,2,4…): bottom→top. Odd columns (1,3,5…): top→bottom.
+      const bottomFirst = col % 2 === 0
+      const rowOrder = bottomFirst
+        ? [...Array(numRows).keys()].reverse()  // bottom → top
+        : [...Array(numRows).keys()]             // top → bottom
+
+      for (const rowIdx of rowOrder) {
+        if (col < rows[rowIdx].length) {
+          rows[rowIdx][col].portIndex = counter++
+        }
+      }
+    }
+  }
+}
+
 export function getPortLayout(
   groups: ParsedPortGroup[],
   availableWidth: number,
   availableHeight: number,
+  options?: PortLayoutOptions,
 ): { ports: RenderedPort[]; rows: number } {
   const ports: RenderedPort[] = []
 
@@ -459,6 +592,7 @@ export function getPortLayout(
   const tenGgroups = groups.filter(g => g.category === 'tenG')
   const qsfpGroups = groups.filter(g => g.category === 'qsfp')
   const mgmtGroups = groups.filter(g => g.category === 'mgmt')
+  const wlanGroups = groups.filter(g => g.category === 'wlan')  // V0.9.3
 
   const copperTotal = copperGroups.reduce((s, g) => s + g.count, 0)
   const sfpTotal = sfpGroups.reduce((s, g) => s + g.count, 0)
@@ -483,6 +617,7 @@ export function getPortLayout(
   const tenGItems = flatten(tenGgroups)
   const qsfpItems = flatten(qsfpGroups)
   const mgmtItems = flatten(mgmtGroups)
+  const wlanItems = flatten(wlanGroups)  // V0.9.3
 
   const hasBoth = copperTotal > 0 && fiberTotal > 0
 
@@ -570,8 +705,11 @@ export function getPortLayout(
   // ── 4. Mgmt rows (full width, always at bottom) ──
   const mgmtRows = fillRows(mgmtItems, usableW, mgmtItems.length || 1, PORT_GAP, GROUP_GAP)
 
+  // V0.9.3: WLAN rows (full width, at top for PC/Laptop terminals)
+  const wlanRows = wlanItems.length > 0 ? fillRows(wlanItems, usableW, wlanItems.length || 1, PORT_GAP, GROUP_GAP) : []
+
   // ── 5. Combine all rows for vertical distribution ──
-  const allRows = [...mainRows, ...mgmtRows]
+  const allRows = [...wlanRows, ...mainRows, ...mgmtRows]
   const numRows = allRows.length
   if (numRows === 0) return { ports, rows: 0 }
 
@@ -584,6 +722,7 @@ export function getPortLayout(
     tenG: 18,
     qsfp: 20,
     mgmt: 14,
+    wlan: 18,  // V0.9.3
   }
 
   // Compute per-row heights: each row gets at least its category minimum
@@ -639,6 +778,9 @@ export function getPortLayout(
     currentY += rowH + ROW_GAP
   }
 
+  // V0.9.1: Apply numbering options (zero-based / interleaved)
+  reassignPortIndices(ports, options || {})
+
   return { ports, rows: numRows }
 }
 
@@ -655,17 +797,18 @@ export function countLayoutRows(groups: ParsedPortGroup[]): number {
   const tenGTotal = groups.filter(g => g.category === 'tenG').reduce((s, g) => s + g.count, 0)
   const qsfpTotal = groups.filter(g => g.category === 'qsfp').reduce((s, g) => s + g.count, 0)
   const mgmtTotal = groups.filter(g => g.category === 'mgmt').reduce((s, g) => s + g.count, 0)
+  const wlanTotal = groups.filter(g => g.category === 'wlan').reduce((s, g) => s + g.count, 0)  // V0.9.3
   const fiberTotal = sfpTotal + tenGTotal + qsfpTotal
 
   const rowsFor = (n: number) => n > 0 ? Math.ceil(n / determineMaxPerRow(n)) : 0
 
   if (copperTotal > 0 && fiberTotal > 0) {
-    // Side-by-side: rows = max(copper rows, fiber rows) + mgmt rows
+    // Side-by-side: rows = max(copper rows, fiber rows) + mgmt rows + wlan rows
     const fiberRows = rowsFor(sfpTotal) + rowsFor(tenGTotal) + rowsFor(qsfpTotal)
-    return Math.max(rowsFor(copperTotal), fiberRows) + rowsFor(mgmtTotal)
+    return rowsFor(wlanTotal) + Math.max(rowsFor(copperTotal), fiberRows) + rowsFor(mgmtTotal)
   }
   // Single-type or fiber-only
-  return rowsFor(copperTotal) + rowsFor(sfpTotal) + rowsFor(tenGTotal) + rowsFor(qsfpTotal) + rowsFor(mgmtTotal)
+  return rowsFor(wlanTotal) + rowsFor(copperTotal) + rowsFor(sfpTotal) + rowsFor(tenGTotal) + rowsFor(qsfpTotal) + rowsFor(mgmtTotal)
 }
 
 // ── V0.7.1: Modular port editing helpers ──────────────────────

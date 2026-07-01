@@ -53,10 +53,10 @@ export interface DeviceModel {
 }
 
 // Connection type
-export type ConnectionType = 'ethernet' | 'fiber'
+export type ConnectionType = 'ethernet' | 'fiber' | 'stack' | 'wireless'
 
 // Animation style
-export type AnimationStyle = 'none' | 'particle' | 'glow'
+export type AnimationStyle = 'none' | 'particle' | 'glow' | 'wave'
 
 // Edge path style — how the line is drawn between nodes
 export type PathStyle = 'adaptive' | 'straight' | 'step'
@@ -68,6 +68,7 @@ export interface EdgeData {
   direction: 'forward' | 'reverse'
   pathStyle?: PathStyle
   bandwidth?: string
+  cableLength?: string       // V0.9.2: 线缆长度，如 "0.3M"、"5M"
   sourcePort?: string
   targetPort?: string
   label?: string
@@ -98,6 +99,13 @@ export interface NodeData {
   customColor?: string
   description?: string
   ipAddress?: string
+  // V0.9.0: Device stacking mode
+  isStacked?: boolean
+  // V0.9.1: Port numbering options
+  portZeroBased?: boolean   // When true, ports start from GE0 instead of GE1
+  portInterleaved?: boolean  // When true, ports are numbered column-major (alternating rows)
+  // V0.9.3: Business description — shown on long-hover tooltip
+  businessNote?: string
 }
 
 // Topo file format
