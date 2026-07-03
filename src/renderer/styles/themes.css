@@ -39,6 +39,14 @@
   --color-port-target-text: #C2410C;
   --color-port-target-border: #FED7AA;
 
+  /* V1.5.1: Edge interface IP labels */
+  --color-ip-source-bg: #F0FDF4;
+  --color-ip-source-text: #15803D;
+  --color-ip-source-border: #BBF7D0;
+  --color-ip-target-bg: #FDF4FF;
+  --color-ip-target-text: #A21CAF;
+  --color-ip-target-border: #F0ABFC;
+
   /* Canvas & controls */
   --color-canvas-grid: #E5E5E5;
   --color-minimap-mask: rgba(0, 0, 0, 0.1);
@@ -65,9 +73,59 @@
   --color-port-stack-fill: #2D2D2D;
   --color-port-stack-stroke: #FF9800;
 
+  /* V1.3.0: Tunnel ports (SDWAN) */
+  --color-port-tunnel-fill: #0F766E;
+  --color-port-tunnel-stroke: #14B8A6;
+  --color-port-tunnel-glow: rgba(20, 184, 166, 0.3);
+  --color-edge-tunnel: #0D9488;
+  --color-edge-tunnel-effect: #14B8A6;
+
   /* V0.9.3: Wireless edge */
   --color-edge-wireless: #14B8A6;
   --color-edge-wireless-effect: #2DD4BF;
+
+  /* Device category colors — SDWAN (teal) */
+  --color-cat-sdwan-bg: #F0FDFA;
+  --color-cat-sdwan-border: #99F6E4;
+  --color-cat-sdwan-accent: #14B8A6;
+  --color-cat-sdwan-light: #CCFBF1;
+
+  /* Per-type SDWAN accent colors (for model-based SVG coloring) */
+  /* Device category colors — SDWAN节点 (cyan) */
+  --color-cat-sdwan-node-bg: #ECFEFF;
+  --color-cat-sdwan-node-border: #A5F3FC;
+  --color-cat-sdwan-node-accent: #06B6D4;
+  --color-cat-sdwan-node-light: #CFFAFE;
+
+  /* Device category colors — 互联网网络 (blue) */
+  --color-cat-sdwan-internet-bg: #EFF6FF;
+  --color-cat-sdwan-internet-border: #BFDBFE;
+  --color-cat-sdwan-internet-accent: #3B82F6;
+  --color-cat-sdwan-internet-light: #DBEAFE;
+
+  /* Device category colors — 公有云 (sky) */
+  --color-cat-sdwan-cloud-bg: #F0F9FF;
+  --color-cat-sdwan-cloud-border: #BAE6FD;
+  --color-cat-sdwan-cloud-accent: #0EA5E9;
+  --color-cat-sdwan-cloud-light: #E0F2FE;
+
+  /* Device category colors — 数据中心 (indigo) */
+  --color-cat-sdwan-datacenter-bg: #EEF2FF;
+  --color-cat-sdwan-datacenter-border: #C7D2FE;
+  --color-cat-sdwan-datacenter-accent: #6366F1;
+  --color-cat-sdwan-datacenter-light: #E0E7FF;
+
+  /* Device category colors — SDWAN设备 (emerald) */
+  --color-cat-sdwan-device-bg: #ECFDF5;
+  --color-cat-sdwan-device-border: #A7F3D0;
+  --color-cat-sdwan-device-accent: #10B981;
+  --color-cat-sdwan-device-light: #D1FAE5;
+
+  /* V1.4.0: Device category colors — 互联网应用 (teal-green, unified domestic+international) */
+  --color-cat-sdwan-internetapp-bg: #F0FDFA;
+  --color-cat-sdwan-internetapp-border: #99F6E4;
+  --color-cat-sdwan-internetapp-accent: #0D9488;
+  --color-cat-sdwan-internetapp-light: #CCFBF1;
 
   /* Device category colors — 防火墙 (red) */
   --color-cat-firewall-bg: #FEF2F2;
@@ -116,6 +174,55 @@
   --color-cat-default-border: #E5E5E5;
   --color-cat-default-accent: #6B7280;
   --color-cat-default-light: #F3F4F6;
+
+  /* V1.1.0: Device category colors — 配线架 (slate blue) */
+  --color-cat-patch-panel-bg: #F0F4F8;
+  --color-cat-patch-panel-border: #CBD5E1;
+  --color-cat-patch-panel-accent: #64748B;
+  --color-cat-patch-panel-light: #E2E8F0;
+
+  /* V1.1.0: Device category colors — 超融合 (deep teal) */
+  --color-cat-hyper-converged-bg: #F0FDFA;
+  --color-cat-hyper-converged-border: #99F6E4;
+  --color-cat-hyper-converged-accent: #0D9488;
+  --color-cat-hyper-converged-light: #CCFBF1;
+
+  /* V1.1.0: Device category colors — 存储 (violet) */
+  --color-cat-storage-bg: #F5F3FF;
+  --color-cat-storage-border: #C4B5FD;
+  --color-cat-storage-accent: #7C3AED;
+  --color-cat-storage-light: #EDE9FE;
+
+  /* V1.1.0: Device category colors — 运营商光猫 (rose) */
+  --color-cat-ont-bg: #FFF1F2;
+  --color-cat-ont-border: #FECDD3;
+  --color-cat-ont-accent: #E11D48;
+  --color-cat-ont-light: #FFE4E6;
+
+  /* V1.1.0: Rack cabinet */
+  --color-rack-frame: #4A5568;
+  --color-rack-bg: #F8FAFC;
+  --color-rack-header-bg: #E2E8F0;
+  --color-rack-footer-bg: #E2E8F0;
+  --color-rack-label: #1A1A1A;
+  --color-rack-rail-bg: #F1F5F9;
+  --color-rack-rail-stroke: #CBD5E1;
+  --color-rack-u-marker: #9CA3AF;
+  --color-rack-u-line: #CBD5E1;
+  --color-rack-cable-mgmt: #D1D5DB;
+  --color-rack-blanking: #374151;
+  --color-rack-blanking-inner: #1F2937;
+  --color-rack-pdu: #F59E0B;
+  --color-rack-pdu-stroke: #D97706;
+  --color-rack-pdu-outlet: #FDE68A;
+  /* V1.1.2: Rack back panel + PSU */
+  --color-rack-back-bg: #F1F5F9;
+  --color-rack-psu-bg: #E8F5E9;
+  --color-rack-psu-stroke: #66BB6A;
+  --color-rack-psu-led: #4CAF50;
+  --color-rack-psu-inlet: #424242;
+  --color-rack-front-badge: #DBEAFE;
+  --color-rack-back-badge: #FEF3C7;
 
   /* Port type colors — V0.7.0 realistic rendering */
   --color-port-copper-fill: #3D3D3D;
@@ -177,6 +284,14 @@
   --color-port-target-text: #D4A574;
   --color-port-target-border: #3D2D20;
 
+  /* V1.5.1: Interface IP labels — dark theme */
+  --color-ip-source-bg: #1A2E1E;
+  --color-ip-source-text: #6EE7B7;
+  --color-ip-source-border: #2D4A30;
+  --color-ip-target-bg: #2A1A30;
+  --color-ip-target-text: #D8B4FE;
+  --color-ip-target-border: #3D2550;
+
   /* Canvas & controls — dark + gold */
   --color-canvas-grid: #1E2D40;
   --color-minimap-mask: rgba(0, 0, 0, 0.4);
@@ -203,9 +318,59 @@
   --color-port-stack-fill: #1A1528;
   --color-port-stack-stroke: #D49848;
 
+  /* V1.3.0: Tunnel ports (SDWAN) */
+  --color-port-tunnel-fill: #0A2025;
+  --color-port-tunnel-stroke: #2DD4BF;
+  --color-port-tunnel-glow: rgba(45, 212, 191, 0.25);
+  --color-edge-tunnel: #2DD4BF;
+  --color-edge-tunnel-effect: #5EEAD4;
+
   /* V0.9.3: Wireless edge */
   --color-edge-wireless: #34D3A6;
   --color-edge-wireless-effect: #5EE0BF;
+
+  /* Device category colors — SDWAN (dark teal) */
+  --color-cat-sdwan-bg: #0A1D1A;
+  --color-cat-sdwan-border: #0A3028;
+  --color-cat-sdwan-accent: #2DD4BF;
+  --color-cat-sdwan-light: #0F2828;
+
+  /* Per-type SDWAN accent colors (for model-based SVG coloring) */
+  /* Device category colors — SDWAN节点 (dark cyan) */
+  --color-cat-sdwan-node-bg: #0A1A1D;
+  --color-cat-sdwan-node-border: #0A2A30;
+  --color-cat-sdwan-node-accent: #22D3EE;
+  --color-cat-sdwan-node-light: #0F2830;
+
+  /* Device category colors — 互联网网络 (dark blue) */
+  --color-cat-sdwan-internet-bg: #0F172A;
+  --color-cat-sdwan-internet-border: #1E3050;
+  --color-cat-sdwan-internet-accent: #60A5FA;
+  --color-cat-sdwan-internet-light: #162240;
+
+  /* Device category colors — 公有云 (dark sky) */
+  --color-cat-sdwan-cloud-bg: #0C1A2B;
+  --color-cat-sdwan-cloud-border: #153550;
+  --color-cat-sdwan-cloud-accent: #38BDF8;
+  --color-cat-sdwan-cloud-light: #122840;
+
+  /* Device category colors — 数据中心 (dark indigo) */
+  --color-cat-sdwan-datacenter-bg: #151830;
+  --color-cat-sdwan-datacenter-border: #252050;
+  --color-cat-sdwan-datacenter-accent: #818CF8;
+  --color-cat-sdwan-datacenter-light: #1E2050;
+
+  /* Device category colors — SDWAN设备 (dark emerald) */
+  --color-cat-sdwan-device-bg: #0A1A15;
+  --color-cat-sdwan-device-border: #152820;
+  --color-cat-sdwan-device-accent: #34D399;
+  --color-cat-sdwan-device-light: #122820;
+
+  /* V1.4.0: Device category colors — 互联网应用 (dark teal-green) */
+  --color-cat-sdwan-internetapp-bg: #0A1D1A;
+  --color-cat-sdwan-internetapp-border: #0A3028;
+  --color-cat-sdwan-internetapp-accent: #2DD4BF;
+  --color-cat-sdwan-internetapp-light: #0F2828;
 
   /* Device category colors — 防火墙 (deep crimson) */
   --color-cat-firewall-bg: #2D1518;
@@ -254,6 +419,55 @@
   --color-cat-default-border: #3A3558;
   --color-cat-default-accent: #8B7D6B;
   --color-cat-default-light: #1E2846;
+
+  /* V1.1.0: Device category colors — 配线架 (dark slate blue) */
+  --color-cat-patch-panel-bg: #1A2240;
+  --color-cat-patch-panel-border: #3A4568;
+  --color-cat-patch-panel-accent: #8498B8;
+  --color-cat-patch-panel-light: #1E2846;
+
+  /* V1.1.0: Device category colors — 超融合 (dark teal) */
+  --color-cat-hyper-converged-bg: #152820;
+  --color-cat-hyper-converged-border: #254035;
+  --color-cat-hyper-converged-accent: #2DD4BF;
+  --color-cat-hyper-converged-light: #1E3028;
+
+  /* V1.1.0: Device category colors — 存储 (dark violet) */
+  --color-cat-storage-bg: #1D1835;
+  --color-cat-storage-border: #352D55;
+  --color-cat-storage-accent: #A78BFA;
+  --color-cat-storage-light: #282048;
+
+  /* V1.1.0: Device category colors — 运营商光猫 (dark rose) */
+  --color-cat-ont-bg: #2D1520;
+  --color-cat-ont-border: #552035;
+  --color-cat-ont-accent: #F06070;
+  --color-cat-ont-light: #3D1D28;
+
+  /* V1.1.0: Rack cabinet — dark metallic */
+  --color-rack-frame: #5A4A6A;
+  --color-rack-bg: #121A32;
+  --color-rack-header-bg: #1A2540;
+  --color-rack-footer-bg: #1A2540;
+  --color-rack-label: #D4C8A8;
+  --color-rack-rail-bg: #162040;
+  --color-rack-rail-stroke: #3D3550;
+  --color-rack-u-marker: #6B6080;
+  --color-rack-u-line: #2D3050;
+  --color-rack-cable-mgmt: #3D3548;
+  --color-rack-blanking: #1A1628;
+  --color-rack-blanking-inner: #0F0D1A;
+  --color-rack-pdu: #B8860B;
+  --color-rack-pdu-stroke: #8B6508;
+  --color-rack-pdu-outlet: #D4A040;
+  /* V1.1.2: Rack back panel + PSU — dark theme */
+  --color-rack-back-bg: #1A2540;
+  --color-rack-psu-bg: #1B3D2A;
+  --color-rack-psu-stroke: #3A7D4A;
+  --color-rack-psu-led: #4CAF50;
+  --color-rack-psu-inlet: #8A8A8A;
+  --color-rack-front-badge: #1E3A5F;
+  --color-rack-back-badge: #5A4A1A;
 
   /* Port type colors — gilded dark theme */
   --color-port-copper-fill: #2A2530;
@@ -304,4 +518,14 @@
   input[type="range"] {
     accent-color: #D4A574;
   }
+}
+
+/* ── V1.5.1: Business image resize handle — hover only ────── */
+.internetapp-resize-handle {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.internetapp-image:hover + .internetapp-resize-handle,
+.internetapp-resize-handle:hover {
+  opacity: 1;
 }

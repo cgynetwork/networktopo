@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { CategoryRow, DeviceRow } from '../../types'
+import { RACK_SIZES } from '../../utils/rackUtils'
 import AddDeviceModal from './AddDeviceModal'
 import SidebarContextMenu from '../SidebarContextMenu'
 import type { SidebarContextMenuState } from '../SidebarContextMenu'
@@ -14,6 +15,11 @@ const CATEGORY_ICONS: Record<string, string> = {
   server: '🖥️',
   pc: '🖥️',
   laptop: '💻',
+  'patch-panel': '🔌',
+  'hyper-converged': '🗄️',
+  storage: '💾',
+  ont: '📟',
+  'sdwan': '🔷',
   default: '📦',
 }
 
@@ -201,6 +207,45 @@ export default function Sidebar(_props: SidebarProps) {
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {loading && (
           <div className="py-8 text-center text-xs text-text-secondary">加载设备库...</div>
+        )}
+
+        {/* ── V1.1.0: Rack cabinet section ── */}
+        {!loading && (
+          <div className="mb-3">
+            <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+              <span className="text-sm">🗄️</span>
+              <span className="text-sm font-semibold text-text-primary">网络机柜</span>
+            </div>
+            <div className="text-2xs text-text-secondary px-2 mb-1.5">
+              拖入画布后，再将设备拖入机柜自动装配
+            </div>
+            <div className="ml-2 pl-3 border-l border-border grid grid-cols-2 gap-1">
+              {RACK_SIZES.map((rack) => (
+                <div
+                  key={rack.uHeight}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded cursor-grab hover:bg-select-bg hover:border hover:border-select-border active:cursor-grabbing transition-all border border-transparent"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/topo-rack', JSON.stringify(rack))
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: 'var(--color-rack-frame)' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-text-primary truncate">
+                      {rack.uHeight}U
+                    </div>
+                    <div className="text-2xs text-text-secondary truncate">
+                      {rack.label.replace(/^\d+U\s*/, '')}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {!loading &&
@@ -394,6 +439,11 @@ function getCategoryColor(categoryName: string): string {
     '服务器': 'var(--color-cat-server-accent)',
     '终端-PC': 'var(--color-cat-pc-accent)',
     '终端-笔记本': 'var(--color-cat-laptop-accent)',
+    '配线架': 'var(--color-cat-patch-panel-accent)',
+    '超融合': 'var(--color-cat-hyper-converged-accent)',
+    '存储': 'var(--color-cat-storage-accent)',
+    '运营商光猫': 'var(--color-cat-ont-accent)',
+    'SDWAN': 'var(--color-cat-sdwan-accent)',
   }
   return colors[categoryName] || 'var(--color-cat-default-accent)'
 }

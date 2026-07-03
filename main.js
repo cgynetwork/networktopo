@@ -89,19 +89,101 @@ function seedData(db) {
       for (const d of newDevices) migrateDev.run(...d)
       console.log('V0.9.3 migration: added PC/Laptop categories and devices')
     }
+    // V1.1.0: Incremental migration — add rack equipment categories if missing
+    const rackCount = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name = '配线架'").get()
+    if (rackCount.cnt === 0) {
+      const migrateCat2 = db.prepare('INSERT OR IGNORE INTO categories (name, icon, sort_order) VALUES (?, ?, ?)')
+      migrateCat2.run('配线架', 'patch-panel', 8)
+      migrateCat2.run('超融合', 'hyper-converged', 9)
+      migrateCat2.run('存储', 'storage', 10)
+      migrateCat2.run('运营商光猫', 'ont', 11)
+      const migrateDev2 = db.prepare('INSERT OR IGNORE INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const rackDevices = [
+        [8, 1, '通用24口配线架', '标准1U 24口超五类网络配线架', '24×GE'],
+        [8, 1, '通用48口配线架', '标准2U 48口超五类网络配线架', '48×GE'],
+        [8, 2, '通用24口光纤配线架', '标准1U 24口LC双工光纤配线架', '24×SFP'],
+        [8, 2, '通用48口光纤配线架', '标准2U 48口LC双工光纤配线架', '48×SFP'],
+        [9, 1, 'UIS 3000 G5', 'H3C 2U 超融合一体机，双路Xeon+3节点', '4×25GE+8×GE'],
+        [9, 2, 'FusionCube 500', 'Huawei 2U 超融合一体机，双路Xeon+2节点', '2×25GE+4×GE'],
+        [9, 1, '通用超融合节点', '通用2U 超融合节点，双路Xeon', '2×25GE+4×GE'],
+        [10, 1, 'UniStor CF22000', 'H3C 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+        [10, 2, 'OceanStor 5310', 'Huawei 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+        [10, 1, '通用存储阵列', '通用2U 存储阵列，12×3.5"盘位', '2×25GE+4×GE'],
+        [10, 1, '通用全闪存储', '通用2U 全闪存储阵列，24×2.5" NVMe', '4×25GE+8×GE'],
+        [11, 2, 'OptiXstar P812E', 'Huawei XGSPON ONT，1×10GE+4×GE', '1×10GE+4×GE'],
+        [11, 1, '通用GPON光猫', '通用1U GPON ONT终端，1×GE+1×POTS', '1×GE'],
+        [11, 1, '通用XGSPON光猫', '通用1U XGSPON ONT终端，1×10GE+4×GE', '1×10GE+4×GE'],
+      ]
+      for (const d of rackDevices) migrateDev2.run(...d)
+      console.log('V1.1.0 migration: added rack equipment categories and devices')
+    }
+    // V1.2.0: Merge 5 separate SDWAN categories into single "SDWAN" category
+    const sdwanExists = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name = 'SDWAN'").get()
+    if (sdwanExists.cnt === 0) {
+      // Clean up old V1.2.0 categories if present (previous migration with 5 categories)
+      const oldCount = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name IN ('SDWAN节点','互联网网络','公有云','数据中心','SDWAN设备')").get()
+      if (oldCount.cnt > 0) {
+        db.prepare("DELETE FROM categories WHERE name IN ('SDWAN节点','互联网网络','公有云','数据中心','SDWAN设备')").run()
+        // Undo the previous sort_order +5 shift
+        db.prepare('UPDATE categories SET sort_order = sort_order - 5 WHERE sort_order > 5').run()
+      }
+      // Shift existing categories down by 1 for the new SDWAN category
+      db.prepare('UPDATE categories SET sort_order = sort_order + 1').run()
+      // Insert single SDWAN category at top
+      db.prepare('INSERT INTO categories (name, icon, sort_order) VALUES (?, ?, ?)').run('SDWAN', 'sdwan', 1)
+      const sdwanCat = db.prepare("SELECT id FROM categories WHERE name = 'SDWAN'").get()
+      const migrateDev3 = db.prepare('INSERT INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const sdwanDevices = [
+        [sdwanCat.id, 1, 'SDWAN Hub Node', 'H3C SDWAN 中心控制节点，策略编排与路由管理', ''],
+        [sdwanCat.id, 1, '互联网接入点', 'ISP 互联网接入点，企业出口上联', ''],
+        [sdwanCat.id, 1, '阿里云 VPC', '阿里云虚拟私有云，高速弹性网络', ''],
+        [sdwanCat.id, 1, '主数据中心', '核心业务数据中心，双路供电+容灾', ''],
+        [sdwanCat.id, 2, 'NetEngine AR8140', 'Huawei SDWAN CPE 网关，4×GE+2×SFP', '4×GE+2×SFP'],
+      ]
+      for (const d of sdwanDevices) migrateDev3.run(...d)
+      console.log('V1.2.0 migration: unified SDWAN category with 5 devices')
+    }
+
+    // V1.3.0: add domestic/international app devices to SDWAN
+    const domesticExists = db.prepare("SELECT COUNT(*) as cnt FROM device_models WHERE model IN ('国内互联网应用', '互联网应用')").get()
+    if (domesticExists.cnt === 0) {
+      const sdwanCat = db.prepare("SELECT id FROM categories WHERE name = 'SDWAN'").get()
+      const migrateDev4 = db.prepare('INSERT OR IGNORE INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const newSdwanDevices = [
+        [sdwanCat.id, 1, '国内互联网应用', '微信、百度等国内主流互联网应用接入点', ''],
+        [sdwanCat.id, 1, '国际互联网应用', 'OpenAI、Salesforce等国际SaaS应用接入点', ''],
+      ]
+      for (const d of newSdwanDevices) migrateDev4.run(...d)
+      console.log('V1.3.0 migration: added domestic/international app devices to SDWAN')
+    }
+
+    // V1.4.0: merge domestic/international app devices into single unified 互联网应用
+    const mergedAppExists = db.prepare("SELECT COUNT(*) as cnt FROM device_models WHERE model = '互联网应用'").get()
+    if (mergedAppExists.cnt === 0) {
+      const sdwanCat = db.prepare("SELECT id FROM categories WHERE name = 'SDWAN'").get()
+      db.prepare("DELETE FROM device_models WHERE model IN ('国内互联网应用', '国际互联网应用')").run()
+      const migrateDev5 = db.prepare('INSERT INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      migrateDev5.run(sdwanCat.id, 1, '互联网应用', '国内外主流互联网应用接入点，支持上传自定义业务图片', '')
+      console.log('V1.4.0 migration: merged domestic/international app devices into unified 互联网应用')
+    }
     return
   }
 
   // Categories
   const insertCat = db.prepare('INSERT INTO categories (name, icon, sort_order) VALUES (?, ?, ?)')
   const categories = [
-    ['防火墙', 'firewall', 1],
-    ['交换机', 'switch', 2],
-    ['无线控制器', 'ac', 3],
-    ['无线接入点', 'ap', 4],
-    ['服务器', 'server', 5],
-    ['终端-PC', 'pc', 6],           // V0.9.3
-    ['终端-笔记本', 'laptop', 7],   // V0.9.3
+    ['防火墙', 'firewall', 6],
+    ['交换机', 'switch', 7],
+    ['无线控制器', 'ac', 8],
+    ['无线接入点', 'ap', 9],
+    ['服务器', 'server', 10],
+    ['终端-PC', 'pc', 11],           // V0.9.3
+    ['终端-笔记本', 'laptop', 12],   // V0.9.3
+    ['配线架', 'patch-panel', 13],   // V1.1.0
+    ['超融合', 'hyper-converged', 14],   // V1.1.0
+    ['存储', 'storage', 15],        // V1.1.0
+    ['运营商光猫', 'ont', 16],      // V1.1.0
+    ['SDWAN', 'sdwan', 1],                     // V1.2.0
   ]
   for (const c of categories) insertCat.run(...c)
 
@@ -175,6 +257,32 @@ function seedData(db) {
     // V0.9.3: 通用终端
     [6, 1, '通用PC终端', '通用桌面PC终端，固定1无线+1网络', '1×WLAN+1×GE'],
     [7, 1, '通用笔记本终端', '通用笔记本终端，固定1无线+1网络', '1×WLAN+1×GE'],
+    // V1.1.0: 配线架 (category_id=8)
+    [8, 1, '通用24口配线架', '标准1U 24口超五类网络配线架', '24×GE'],
+    [8, 1, '通用48口配线架', '标准2U 48口超五类网络配线架', '48×GE'],
+    [8, 2, '通用24口光纤配线架', '标准1U 24口LC双工光纤配线架', '24×SFP'],
+    [8, 2, '通用48口光纤配线架', '标准2U 48口LC双工光纤配线架', '48×SFP'],
+    // V1.1.0: 超融合 (category_id=9)
+    [9, 1, 'UIS 3000 G5', 'H3C 2U 超融合一体机，双路Xeon+3节点', '4×25GE+8×GE'],
+    [9, 2, 'FusionCube 500', 'Huawei 2U 超融合一体机，双路Xeon+2节点', '2×25GE+4×GE'],
+    [9, 1, '通用超融合节点', '通用2U 超融合节点，双路Xeon', '2×25GE+4×GE'],
+    // V1.1.0: 存储 (category_id=10)
+    [10, 1, 'UniStor CF22000', 'H3C 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+    [10, 2, 'OceanStor 5310', 'Huawei 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+    [10, 1, '通用存储阵列', '通用2U 存储阵列，12×3.5"盘位', '2×25GE+4×GE'],
+    [10, 1, '通用全闪存储', '通用2U 全闪存储阵列，24×2.5" NVMe', '4×25GE+8×GE'],
+    // V1.1.0: 运营商光猫 (category_id=11)
+    [11, 2, 'OptiXstar P812E', 'Huawei XGSPON ONT，1×10GE+4×GE', '1×10GE+4×GE'],
+    [11, 1, '通用GPON光猫', '通用1U GPON ONT终端，1×GE+1×POTS', '1×GE'],
+    [11, 1, '通用XGSPON光猫', '通用1U XGSPON ONT终端，1×10GE+4×GE', '1×10GE+4×GE'],
+    // V1.2.0: SDWAN (category_id=12) — one device per type
+    [12, 1, 'SDWAN Hub Node', 'H3C SDWAN 中心控制节点，策略编排与路由管理', ''],
+    [12, 1, '互联网接入点', 'ISP 互联网接入点，企业出口上联', ''],
+    [12, 1, '阿里云 VPC', '阿里云虚拟私有云，高速弹性网络', ''],
+    [12, 1, '主数据中心', '核心业务数据中心，双路供电+容灾', ''],
+    [12, 2, 'NetEngine AR8140', 'Huawei SDWAN CPE 网关，4×GE+2×SFP', '4×GE+2×SFP'],
+    // V1.4.0: SDWAN internet application device (unified domestic+international)
+    [12, 1, '互联网应用', '国内外主流互联网应用接入点，支持上传自定义业务图片', ''],
   ]
   const insertAll = db.transaction(() => { for (const d of devices) insertDev.run(...d) })
   insertAll()
@@ -345,7 +453,7 @@ function registerFileHandlers() {
     const win = BrowserWindow.getFocusedWindow(); if (!win) return { success: false, error: 'No active window' }
     const r = await dialog.showOpenDialog(win, {
       title: '选择设备图片',
-      filters: [{ name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      filters: [{ name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'bmp'] }],
       properties: ['openFile'],
     })
     if (r.canceled || r.filePaths.length === 0) return { success: false, canceled: true }
@@ -369,7 +477,7 @@ function registerFileHandlers() {
       if (!fs.existsSync(fp)) return { success: false, error: 'File not found' }
       const buffer = fs.readFileSync(fp)
       const ext = path.extname(basename).toLowerCase()
-      const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
+      const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp' }
       const mime = mimeMap[ext] || 'image/png'
       return { success: true, dataUrl: `data:${mime};base64,${buffer.toString('base64')}` }
     } catch (e) { return { success: false, error: e.message } }
@@ -385,6 +493,27 @@ function registerFileHandlers() {
       if (!target.startsWith(dir)) return { success: false, error: 'Access denied' }
       if (fs.existsSync(fp)) fs.unlinkSync(fp)
       return { success: true }
+    } catch (e) { return { success: false, error: e.message } }
+  })
+
+  // V1.4.0: Pick business image — returns base64 data URL directly (no file storage)
+  ipcMain.handle('file:pickAppImage', async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return { success: false, error: 'No active window' }
+    const r = await dialog.showOpenDialog(win, {
+      title: '选择业务图片',
+      filters: [{ name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'bmp'] }],
+      properties: ['openFile'],
+    })
+    if (r.canceled || r.filePaths.length === 0) return { success: false, canceled: true }
+    try {
+      const stat = fs.statSync(r.filePaths[0])
+      if (stat.size > 512 * 1024) return { success: false, error: '图片不能超过 512KB' }
+      const buffer = fs.readFileSync(r.filePaths[0])
+      const ext = path.extname(r.filePaths[0]).toLowerCase()
+      const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp' }
+      const mime = mimeMap[ext] || 'image/png'
+      return { success: true, dataUrl: `data:${mime};base64,${buffer.toString('base64')}`, fileName: path.basename(r.filePaths[0]) }
     } catch (e) { return { success: false, error: e.message } }
   })
 }
@@ -581,13 +710,15 @@ const menuTemplate = [
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
-    title: 'Topo V1.0.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
+    title: 'Topo V1.2.1 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
     webPreferences: {
       preload: path.join(__dirname, 'out', 'preload', 'index.js'),
       sandbox: false, contextIsolation: true, nodeIntegration: false,
     },
   })
-  mainWindow.on('ready-to-show', () => mainWindow.show())
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show()
+  })
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url); return { action: 'deny' }
   })

@@ -5,6 +5,7 @@ export interface ContextMenuState {
   y: number
   type: 'edge' | 'node' | 'batch' | 'canvas'
   id: string
+  nodeType?: string  // V1.1.1: to show rack-specific menu items
 }
 
 interface CanvasContextMenuProps {
@@ -24,6 +25,9 @@ interface CanvasContextMenuProps {
   onUngroupBatch?: () => void
   hasGroupedNode?: boolean
   hasGroupedSelection?: boolean
+  // V1.1.1: Rack-specific actions
+  onAddDeviceToRack?: () => void
+  isRackNode?: boolean
 }
 
 export default function CanvasContextMenu({
@@ -43,6 +47,8 @@ export default function CanvasContextMenu({
   onUngroupBatch,
   hasGroupedNode,
   hasGroupedSelection,
+  onAddDeviceToRack,
+  isRackNode,
 }: CanvasContextMenuProps) {
   return (
     <>
@@ -94,6 +100,19 @@ export default function CanvasContextMenu({
         )}
         {contextMenu.type === 'node' && (
           <>
+            {/* V1.1.1: Rack-specific actions */}
+            {isRackNode && onAddDeviceToRack && (
+              <>
+                <button
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
+                  onClick={onAddDeviceToRack}
+                >
+                  <span className="w-4 text-center">➕</span>
+                  <span>添加设备到机柜</span>
+                </button>
+                <div className="border-t border-border my-0.5" />
+              </>
+            )}
             <button
               className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
               onClick={onCopyNode}

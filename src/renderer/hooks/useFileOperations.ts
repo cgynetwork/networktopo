@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf'
 import type { EdgeData } from '../types'
 import type { HistoryState } from './useHistory'
 import type { ToastContextValue } from '../context/ToastContext'
+import { migrateViewMode } from '../utils/rackUtils'
 
 interface UseFileOperationsOptions {
   rfInstance: ReactFlowInstance | null
@@ -90,7 +91,7 @@ export function useFileOperations({
     if (!rfInstance) return
     const flow = rfInstance.toObject()
     const topoFile = {
-      version: '1.0.0',
+      version: '1.1.0',
       nodes: flow.nodes,
       edges: flow.edges,
       viewport: flow.viewport,
@@ -119,7 +120,7 @@ export function useFileOperations({
   const handleSave = useCallback(async () => {
     if (!rfInstance) return
     const flow = rfInstance.toObject()
-    const topoFile = { version: '1.0.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
+    const topoFile = { version: '1.1.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
     try {
       const result = await window.electronAPI.saveFile(
         JSON.stringify(topoFile, null, 2),
@@ -142,7 +143,7 @@ export function useFileOperations({
   const handleSaveAs = useCallback(async () => {
     if (!rfInstance) return
     const flow = rfInstance.toObject()
-    const topoFile = { version: '1.0.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
+    const topoFile = { version: '1.1.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
     try {
       const result = await window.electronAPI.saveFile(JSON.stringify(topoFile, null, 2))
       if (result.success && result.filePath) {
@@ -163,10 +164,41 @@ export function useFileOperations({
     (content: string, filePath: string) => {
       history.pushSnapshot(nodes, edges)
       const topoFile = JSON.parse(content)
-      const loadedNodes = (topoFile.nodes || []).map((n: Node) => ({
-        ...n,
-        type: n.type || 'deviceNode',
-      }))
+      const loadedNodes = (topoFile.nodes || []).map((n: Node) => {
+        const data = n.data as Record<string, unknown> | undefined
+        // V1.1.2: Migrate old viewMode values ('compact'/'detail' → 'front'/'back')
+        if (data && 'viewMode' in data) {
+          data.viewMode = migrateViewMode(data.viewMode as string | undefined)
+        }
+        if (data && 'parentViewMode' in data) {
+          data.parentViewMode = migrateViewMode(data.parentViewMode as string | undefined)
+        }
+        // V1.4.0: Migrate old SDWAN model names → unified 互联网应用
+        if (data && 'device' in data) {
+          const dev = data.device as Record<string, unknown>
+          if (dev && (dev.model === '国内互联网应用' || dev.model === '国际互联网应用')) {
+            dev.model = '互联网应用'
+          }
+        }
+        // V1.5.0: Migrate old single appImage → appImages array
+        if (data && (data as Record<string, unknown>).appImage && !(data as Record<string, unknown>).appImages) {
+          const d = data as Record<string, unknown>
+          ;(d as Record<string, unknown[]>).appImages = [{
+            id: 'img-legacy-1',
+            dataUrl: d.appImage,
+            offsetX: (d.appImageOffset as { x: number; y: number } | undefined)?.x ?? 0,
+            offsetY: (d.appImageOffset as { x: number; y: number } | undefined)?.y ?? 0,
+            scale: 1,
+          }]
+          delete d.appImage
+          delete d.appImageOffset
+        }
+        return {
+          ...n,
+          type: n.type || 'deviceNode',
+          data,
+        }
+      })
       const loadedEdges = (topoFile.edges || []).map((e: Edge) => ({
         ...e,
         type: e.type || 'animated',

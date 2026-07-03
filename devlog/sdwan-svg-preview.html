@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDWAN 设备 SVG 预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    background: #F0F2F5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .container {
+    max-width: 1300px;
+    width: 100%;
+  }
+  h1 {
+    text-align: center;
+    color: #1A1A1A;
+    margin-bottom: 8px;
+    font-size: 24px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #6B7280;
+    margin-bottom: 32px;
+    font-size: 14px;
+  }
+  .preview-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    min-width: 240px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  }
+  .card-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+  .card-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .svg-wrapper {
+    background: #FAFBFC;
+    border: 1px dashed #E5E5E5;
+    border-radius: 8px;
+    padding: 8px;
+    /* simulate canvas grid */
+    background-image:
+      linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .details {
+    font-size: 11px;
+    color: #6B7280;
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🌐 SDWAN 网络设备 — SVG 预览</h1>
+  <p class="subtitle">以下 5 类设备将作为新的设备分类添加到拓扑绘制软件中</p>
+
+  <div class="preview-grid">
+
+    <!-- ═══ 1. SDWAN节点 ═══ -->
+    <div class="card">
+      <div class="card-label">☁️ SDWAN节点</div>
+      <div class="card-badge" style="background:#ECFEFF;color:#06B6D4;">Cyan · 2 侧边接入点</div>
+      <div class="svg-wrapper">
+        <svg viewBox="0 0 200 144" width="200" height="144" xmlns="http://www.w3.org/2000/svg">
+          <!-- SDWAN Node icon — adapted from user-provided design -->
+          <g transform="translate(32, 16) scale(0.115)">
+            <path d="M935.1 810.8h-16.1a21.6 21.6 0 0 1 0-42.7h17.9a213.2 213.2 0 0 0 216.9-209.1 210 210 0 0 0-146.1-197.6 20.2 20.2 0 0 1-14.2-22.5v-29.4a261 261 0 0 0-34.5-129.1 21.6 21.6 0 0 1 6-28.9 22.1 22.1 0 0 1 28.9 7.8 303.7 303.7 0 0 1 40 150.3v17.5a251.8 251.8 0 0 1 160.8 232 256.4 256.4 0 0 1-259.6 251.8zM275.7 810.8h-16.1a261 261 0 0 1-158.1-51.9 21.1 21.1 0 0 1-4.6-29.9 22.1 22.1 0 0 1 29.9-4.6 220.1 220.1 0 0 0 132.8 46h16.1a21.6 21.6 0 0 1 0 42.7zM56.5 701a20.2 20.2 0 0 1-17.9-11.5 243.1 243.1 0 0 1-38.6-130.5 250 250 0 0 1 159-229.8 178.3 178.3 0 0 1 180.1-175.5 183.8 183.8 0 0 1 89.1 23 317.1 317.1 0 0 1 115.3-127.3 328.1 328.1 0 0 1 321.7-13.8 21.1 21.1 0 0 1 9.2 28.5 21.6 21.6 0 0 1-28.9 9.2 281.7 281.7 0 0 0-128.7-30.3 275.7 275.7 0 0 0-136.4 36.3 21.1 21.1 0 0 1-16.1 13.8 21.6 21.6 0 0 1-18.8-3.7 137.9 137.9 0 0 0-85.5-28.9 135.1 135.1 0 0 0-137.9 132.3 108.4 108.4 0 0 0 0 11.5 20.7 20.7 0 0 1-14.2 21.6 210 210 0 0 0-144.3 196.2 204.9 204.9 0 0 0 31.7 109.4 19.3 19.3 0 0 1 2.8 15.6 22.5 22.5 0 0 1-9.2 13.8 25.3 25.3 0 0 1-11.5 3.2zM924.5 124.7a21.6 21.6 0 0 1-21.6-21.6 22.5 22.5 0 0 1 6-14.2 22.5 22.5 0 0 1 30.3 0 21.6 21.6 0 0 1 6.4 15.2 21.1 21.1 0 0 1-21.1 22.1z" fill="#06B6D4"/>
+            <path d="M597.4 523.1a250.4 250.4 0 1 0 250.4 250 250.4 250.4 0 0 0-250.4-250zm0 464.6a214.6 214.6 0 1 1 214.6-214.6 214.6 214.6 0 0 1-214.6 214.6z" fill="#0891B2"/>
+            <path d="M597.4 559a212.3 212.3 0 0 0-70.8 7.8 280.3 280.3 0 0 0-79 175.5 275.7 275.7 0 0 0 106.1 242.6h15.2a171.9 171.9 0 0 0 57.4 0 229.8 229.8 0 0 1-142.9-241.2 235.7 235.7 0 0 1 114-184.7z" fill="#22D3EE"/>
+            <path d="M597.4 559a212.3 212.3 0 0 1 70.8 7.8 280.3 280.3 0 0 1 79 175.5 275.7 275.7 0 0 1-106.1 242.6h-15.2a171.9 171.9 0 0 1-57.4 0 229.8 229.8 0 0 0 142.9-241.2 235.7 235.7 0 0 0-114-184.7z" fill="#06B6D4"/>
+            <path d="M597.4 666a249.1 249.1 0 0 0 147.5-48.7 205.4 205.4 0 0 0-28.9-23 214.1 214.1 0 0 1-237.1 0 205.4 205.4 0 0 0-28.9 23 249.1 249.1 0 0 0 147.5 48.7zM597.4 881.1a248.6 248.6 0 0 1 147.5 46 179.2 179.2 0 0 1-28.9 23.4 214.1 214.1 0 0 0-237.1 0 179.2 179.2 0 0 1-28.9-23.4 248.6 248.6 0 0 1 147.5-46zM359.8 755.6h474.7v35.8H359.8z" fill="#0891B2"/>
+          </g>
+          <!-- Label -->
+          <text x="100" y="138" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="7" fontWeight="700" fill="#0891B2">SD-WAN NODE</text>
+          <!-- Left connection point -->
+          <circle cx="30" cy="72" r="3.5" fill="#06B6D4" stroke="#22D3EE" strokeWidth="1"/>
+          <circle cx="30" cy="72" r="1.5" fill="#fff"/>
+          <!-- Right connection point -->
+          <circle cx="170" cy="72" r="3.5" fill="#06B6D4" stroke="#22D3EE" strokeWidth="1"/>
+          <circle cx="170" cy="72" r="1.5" fill="#fff"/>
+          <!-- Screw holes -->
+          <circle cx="38" cy="22" r="2" fill="#CFFAFE" stroke="#06B6D4" strokeWidth="0.5"/>
+          <circle cx="162" cy="22" r="2" fill="#CFFAFE" stroke="#06B6D4" strokeWidth="0.5"/>
+          <circle cx="38" cy="130" r="2" fill="#CFFAFE" stroke="#06B6D4" strokeWidth="0.5"/>
+          <circle cx="162" cy="130" r="2" fill="#CFFAFE" stroke="#06B6D4" strokeWidth="0.5"/>
+        </svg>
+      </div>
+      <div class="details">
+        云服务器形态 · 2 固定侧边接入点<br>
+        SD-WAN 中心/边缘节点
+      </div>
+    </div>
+
+    <!-- ═══ 2. 互联网网络 ═══ -->
+    <div class="card">
+      <div class="card-label">🌐 互联网网络</div>
+      <div class="card-badge" style="background:#EFF6FF;color:#3B82F6;">Blue · 2 侧边接入点</div>
+      <div class="svg-wrapper">
+        <svg viewBox="0 0 200 144" width="200" height="144" xmlns="http://www.w3.org/2000/svg">
+          <!-- Internet globe icon — adapted from user-provided design -->
+          <g transform="translate(44, 10) scale(0.11)">
+            <path d="M975.9 310c17.6-19.2 27.2-43.9 27.2-69.9 0-57.5-46.8-104.3-104.3-104.3-12.3 0-24.4 2.2-36 6.7-91.2-88.2-211.1-136.8-337.9-136.8-70.2 0-138.4 15-202.6 44.5l-5.9 2.8C229.6 94.1 154.6 163.2 104.7 247.5 52.5 251.4 12 294.7 12 347c0 27 10.8 52.4 30.4 71.5-4.2 26.1-6.3 51.7-6.3 75.9 0 204.5 129.8 388.8 323.3 459.1 16.4 37.6 54.5 62.8 95.4 62.8 28.5 0 56-12.1 75.8-33.3 265.7-4.8 481.5-223.6 481.5-488.5 0-63.5-12.1-125.5-36.1-184.4zM808.8 187.7c-9.4 16-14.3 34-14.3 52.4 0 16.2 3.8 32.3 11.2 46.8-64.4 31.6-133.6 57.5-200.8 75.2-13.4-28.6-39.2-49.5-69.8-56.8-8-50.8-13.9-103.1-17.6-155.7 68.7 3.1 141.9-2.5 218.6-16.4 23.9 14.8 48.3 33.1 71.5 54.5zM809.1 353.5c-12.1 48.9-18.6 98.7-19.4 148-57.7 39.2-111.6 83-160.5 130.3-20.2-42.8-38.3-91.2-53.8-143.7 20.3-16.1 33.6-38.8 37.8-64.7 81.2 19.3 150.2-8.8 196.1-30zM618.4 85.8c-36 2.6-71.2 3-104.4 1.3-0.1-4.2-0.3-8.2-0.4-11.8 34.6-1.8 69.8 1.7 104.8 10.1v0.4zM511.8 357.2c27.6 0 50 22.5 50 50s-22.5 50-50 50-50-22.5-50-50 22.5-50 50-50zM425.1 81.2c8.3-2 16.7-3.6 25-5.1l4.6-0.8 0.5 18.1-4.6 0.6c-8.5 1.1-16.9 2.4-25.1 3.8l-19.5-3.3 19.1-3.1v-0.2zM319.8 129.2c6.2-3.5 12.7-6.9 19.1-10.1 23.9 8 62.9 18.7 116.1 25.2 2.5 39.1 7.6 98.3 17.9 165.2-34.9 13.6-59.3 44.3-64.8 81.2-36.4 1.2-71.9-0.2-104.7-4-30.9-119.6-38.4-218-43.5-257.7h-0.1zM261.8 168.2c3.5 48.4 2.4 121.5-19.5 208.5-10-1.9-20.8-4.5-32.7-7.8 1.8-7.8 2.7-14.8 2.7-21.5 0-30.8-14.6-60.2-39.2-79.2 24.5-38 55-72.3 88.7-99.8v-0.2zM66.8 347c0-25 20.4-45.4 45.4-45.4s45.3 20.4 45.3 45.4-20.4 45.4-45.3 45.4-45.4-20.4-45.4-45.4zM105.4 494.4c0-14.7 1.1-30.2 3.2-47.5 1.2 0.1 2.3 0.3 3.5 0.3 9.2 0 18.6-1.5 28.8-4.7l0.5 0.5c22.5 20.7 41.3 39.5 57.5 57.4-19.5 43.1-43.8 85.5-72.1 126.3-14.1-41.7-21.4-86.2-21.4-131.5v-0.8zM356.2 877.8c-85.3-37.6-156.4-103.2-200.6-185.5 33.6-44.6 62.8-91.5 86.7-139.5 81.4 107 120.9 213.3 139.8 284.9-11.7 12.5-20.5 26.2-25.8 41.2l-0.1-1.1zM270.7 489.1c5.6-14.3 10.8-28.4 15.4-42 42 5.4 84.8 7.2 131.3 5.3 17.6 36 53.2 58.3 93.4 58.3 2.2 0 4.4-0.1 6.5-0.3 18.7 62.1 40.9 118.7 66.1 168.3-37.6 40.9-72.5 85.4-103.6 132.4-8.6-2.3-16.8-3.4-25.1-3.4-5.3 0-10.7 0.5-16.5 1.6-17.4-82.7-64.9-203.1-161.9-321.2h-5.6zM455.7 963c-27.6 0-50-22.4-50-50s22.4-50 50-50 50 22.4 50 50-22.4 50-50 50zM544 912.2c0-0.1 0-0.2 0-0.2 0-25.4-1.8-49.8-18.7-68.8 25.5-38.2 57-74.5 86.4-107.8 31.7 50.7 62.4 93.8 102.3 128C663.6 890.6 608 907.4 544 912.2zM777.7 828.4c-44.3-34.5-84.1-81.4-118.4-139.6 40.9-40.9 85.6-79.2 133.1-113.8 8.8 90.6 34.2 159 49.6 193.4-18.9 21.9-40.5 42-64.2 60l-0.1 0zM884.7 708.9c-14.1-39.6-30.1-99.8-33-174.4 37.8-24.1 70.2-41.7 92.4-52.9 0.2 4.3 0.2 8.5 0.2 12.8 0 75.2-20.5 149.2-59.5 214.1l-0.1 0.4zM876.1 341.7c13.7 3.3 25.7 3.6 39.2 1.2 9.3 24.2 16.5 49 21.2 73.9-19.2 9.1-48.1 23.7-83.3 44.6 3.5-39.3 11.2-79.5 23-119.7h-0.1z" fill="#3B82F6"/>
+          </g>
+          <!-- Label -->
+          <text x="100" y="138" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="7" fontWeight="700" fill="#1D4ED8">WWW · INTERNET</text>
+          <!-- Left connection point -->
+          <circle cx="42" cy="68" r="3.5" fill="#3B82F6" stroke="#60A5FA" strokeWidth="1"/>
+          <circle cx="42" cy="68" r="1.5" fill="#fff"/>
+          <!-- Right connection point -->
+          <circle cx="158" cy="68" r="3.5" fill="#3B82F6" stroke="#60A5FA" strokeWidth="1"/>
+          <circle cx="158" cy="68" r="1.5" fill="#fff"/>
+          <!-- Screw holes -->
+          <circle cx="48" cy="18" r="2" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="0.5"/>
+          <circle cx="152" cy="18" r="2" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="0.5"/>
+          <circle cx="48" cy="126" r="2" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="0.5"/>
+          <circle cx="152" cy="126" r="2" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="0.5"/>
+        </svg>
+      </div>
+      <div class="details">
+        云服务器 + 万维网地球 · 2 侧边接入点<br>
+        互联网网络接入点 / ISP 上联
+      </div>
+    </div>
+
+    <!-- ═══ 3. 公有云 ═══ -->
+    <div class="card">
+      <div class="card-label">☁️ 公有云</div>
+      <div class="card-badge" style="background:#F0F9FF;color:#0EA5E9;">Sky · 2 侧边接入点</div>
+      <div class="svg-wrapper">
+        <svg viewBox="0 0 200 144" width="200" height="144" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="pc-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#E0F2FE"/>
+              <stop offset="100%" stopColor="#BAE6FD"/>
+            </linearGradient>
+          </defs>
+          <!-- Main rounded chassis -->
+          <rect x="20" y="20" width="160" height="104" rx="12"
+                fill="url(#pc-grad)" stroke="#0EA5E9" strokeWidth="1.5"/>
+          <!-- Accent top bar -->
+          <rect x="20" y="20" width="160" height="6" rx="6"
+                fill="#0EA5E9" opacity="0.35"/>
+          <!-- Cloud icon (left side) -->
+          <g transform="translate(48,56)">
+            <ellipse cx="0" cy="12" rx="10" ry="9" fill="#BAE6FD" stroke="#0EA5E9" strokeWidth="0.8"/>
+            <ellipse cx="12" cy="4" rx="11" ry="12" fill="#BAE6FD" stroke="#0EA5E9" strokeWidth="0.8"/>
+            <ellipse cx="22" cy="12" rx="9" ry="9" fill="#BAE6FD" stroke="#0EA5E9" strokeWidth="0.8"/>
+            <rect x="-8" y="16" width="38" height="4" rx="2" fill="#0EA5E9" opacity="0.3"/>
+          </g>
+          <!-- Server rack icon (right side) -->
+          <g transform="translate(116,52)">
+            <rect x="0" y="0" width="36" height="40" rx="3"
+                  fill="#F0F9FF" stroke="#0EA5E9" strokeWidth="0.8"/>
+            <rect x="4" y="5" width="28" height="6" rx="1" fill="#BAE6FD"/>
+            <circle cx="8" cy="8" r="1.5" fill="#22C55E"/>
+            <rect x="4" y="14" width="28" height="6" rx="1" fill="#BAE6FD"/>
+            <circle cx="8" cy="17" r="1.5" fill="#22C55E"/>
+            <rect x="4" y="23" width="28" height="6" rx="1" fill="#BAE6FD"/>
+            <circle cx="8" cy="26" r="1.5" fill="#22C55E"/>
+            <rect x="4" y="32" width="28" height="5" rx="1" fill="#BAE6FD" opacity="0.6"/>
+          </g>
+          <!-- "CLOUD" label -->
+          <text x="100" y="112" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="9" fontWeight="700" fill="#0284C7">PUBLIC CLOUD</text>
+          <!-- Left connection point -->
+          <circle cx="22" cy="72" r="3.5" fill="#0EA5E9" stroke="#38BDF8" strokeWidth="1"/>
+          <circle cx="22" cy="72" r="1.5" fill="#fff"/>
+          <!-- Right connection point -->
+          <circle cx="178" cy="72" r="3.5" fill="#0EA5E9" stroke="#38BDF8" strokeWidth="1"/>
+          <circle cx="178" cy="72" r="1.5" fill="#fff"/>
+          <!-- Screw holes -->
+          <circle cx="28" cy="28" r="2" fill="#E0F2FE" stroke="#0EA5E9" strokeWidth="0.5"/>
+          <circle cx="172" cy="28" r="2" fill="#E0F2FE" stroke="#0EA5E9" strokeWidth="0.5"/>
+          <circle cx="28" cy="116" r="2" fill="#E0F2FE" stroke="#0EA5E9" strokeWidth="0.5"/>
+          <circle cx="172" cy="116" r="2" fill="#E0F2FE" stroke="#0EA5E9" strokeWidth="0.5"/>
+        </svg>
+      </div>
+      <div class="details">
+        公有云平台形态 · 2 侧边接入点<br>
+        阿里云 / 腾讯云 / 华为云 / AWS / Azure
+      </div>
+    </div>
+
+    <!-- ═══ 4. 数据中心 ═══ -->
+    <div class="card">
+      <div class="card-label">🏢 数据中心</div>
+      <div class="card-badge" style="background:#EEF2FF;color:#6366F1;">Indigo · 2 侧边接入点</div>
+      <div class="svg-wrapper">
+        <svg viewBox="0 0 200 144" width="200" height="144" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="dc-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#E0E7FF"/>
+              <stop offset="100%" stopColor="#C7D2FE"/>
+            </linearGradient>
+          </defs>
+          <!-- Server cluster background card -->
+          <rect x="20" y="16" width="160" height="96" rx="8"
+                fill="url(#dc-grad)" stroke="#6366F1" strokeWidth="1.2"/>
+          <!-- Server 1 (left) -->
+          <g transform="translate(30, 28)">
+            <rect x="0" y="0" width="38" height="70" rx="2" fill="#F8FAFC" stroke="#818CF8" strokeWidth="0.8"/>
+            <!-- Drive bays -->
+            <rect x="4" y="5" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="8.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="15" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="18.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="25" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="28.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="35" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="38.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="45" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="48.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="55" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="58.5" r="1" fill="#22C55E"/>
+          </g>
+          <!-- Server 2 (center) -->
+          <g transform="translate(76, 28)">
+            <rect x="0" y="0" width="38" height="70" rx="2" fill="#F8FAFC" stroke="#818CF8" strokeWidth="0.8"/>
+            <rect x="4" y="5" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="8.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="15" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="18.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="25" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="28.5" r="1" fill="#F59E0B"/>
+            <rect x="4" y="35" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="38.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="45" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="48.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="55" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="58.5" r="1" fill="#22C55E"/>
+          </g>
+          <!-- Server 3 (right) -->
+          <g transform="translate(122, 28)">
+            <rect x="0" y="0" width="38" height="70" rx="2" fill="#F8FAFC" stroke="#818CF8" strokeWidth="0.8"/>
+            <rect x="4" y="5" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="8.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="15" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="18.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="25" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="28.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="35" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="38.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="45" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="48.5" r="1" fill="#22C55E"/>
+            <rect x="4" y="55" width="30" height="7" rx="1" fill="#E0E7FF" stroke="#818CF8" strokeWidth="0.4"/>
+            <circle cx="6" cy="58.5" r="1" fill="#22C55E"/>
+          </g>
+          <!-- "DC" label -->
+          <text x="100" y="124" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="7.5" fontWeight="700" fill="#4338CA">DATA CENTER</text>
+          <!-- Left connection point -->
+          <circle cx="22" cy="64" r="3.5" fill="#6366F1" stroke="#818CF8" strokeWidth="1"/>
+          <circle cx="22" cy="64" r="1.5" fill="#fff"/>
+          <!-- Right connection point -->
+          <circle cx="178" cy="64" r="3.5" fill="#6366F1" stroke="#818CF8" strokeWidth="1"/>
+          <circle cx="178" cy="64" r="1.5" fill="#fff"/>
+          <!-- Screw holes on outer card -->
+          <circle cx="28" cy="24" r="1.8" fill="#E0E7FF" stroke="#6366F1" strokeWidth="0.5"/>
+          <circle cx="172" cy="24" r="1.8" fill="#E0E7FF" stroke="#6366F1" strokeWidth="0.5"/>
+          <circle cx="28" cy="104" r="1.8" fill="#E0E7FF" stroke="#6366F1" strokeWidth="0.5"/>
+          <circle cx="172" cy="104" r="1.8" fill="#E0E7FF" stroke="#6366F1" strokeWidth="0.5"/>
+        </svg>
+      </div>
+      <div class="details">
+        服务器集群组合 · 2 侧边接入点<br>
+        主中心 / 灾备中心 / 通用节点
+      </div>
+    </div>
+
+    <!-- ═══ 5. SDWAN设备 ═══ -->
+    <div class="card">
+      <div class="card-label">🔷 SDWAN设备</div>
+      <div class="card-badge" style="background:#ECFDF5;color:#10B981;">Emerald · 4×GE+2×SFP</div>
+      <div class="svg-wrapper">
+        <svg viewBox="0 0 200 144" width="200" height="144" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="sd-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#F8FAFC"/>
+              <stop offset="100%" stopColor="#F1F5F9"/>
+            </linearGradient>
+          </defs>
+          <!-- Chassis -->
+          <rect x="4" y="8" width="192" height="128" rx="4"
+                fill="url(#sd-grad)" stroke="#CBD5E1" strokeWidth="1.5"/>
+          <!-- Left SDWAN panel (18% = ~35px) -->
+          <rect x="4" y="8" width="35" height="128" rx="4"
+                fill="#10B981" opacity="0.35"/>
+          <!-- SDWAN icon in left panel — hub/spoke diagram -->
+          <g transform="translate(21, 38)">
+            <!-- Hub circle -->
+            <circle cx="0" cy="0" r="6" fill="#10B981" opacity="0.9"/>
+            <circle cx="0" cy="0" r="2.5" fill="#047857"/>
+            <!-- Spoke lines -->
+            <line x1="6" y1="0" x2="12" y2="-8" stroke="#10B981" strokeWidth="1.3" strokeLinecap="round"/>
+            <line x1="6" y1="0" x2="12" y2="0" stroke="#10B981" strokeWidth="1.3" strokeLinecap="round"/>
+            <line x1="6" y1="0" x2="12" y2="8" stroke="#10B981" strokeWidth="1.3" strokeLinecap="round"/>
+            <!-- Branch dots -->
+            <circle cx="12.5" cy="-8" r="2" fill="#34D399"/>
+            <circle cx="12.5" cy="0" r="2" fill="#34D399"/>
+            <circle cx="12.5" cy="8" r="2" fill="#34D399"/>
+          </g>
+          <!-- SDWAN text in left panel -->
+          <text x="21" y="72" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="4.5" fontWeight="700" fill="#047857">SD</text>
+          <text x="21" y="80" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="4.5" fontWeight="700" fill="#047857">WAN</text>
+          <!-- Status LEDs in left panel -->
+          <circle cx="21" cy="90" r="2" fill="#22C55E"/>
+          <circle cx="21" cy="97" r="2" fill="#10B981" opacity="0.6"/>
+          <circle cx="21" cy="104" r="2" fill="#10B981" opacity="0.6"/>
+          <!-- Screw holes -->
+          <circle cx="12" cy="16" r="2.5" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5"/>
+          <circle cx="188" cy="16" r="2.5" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5"/>
+          <circle cx="12" cy="128" r="2.5" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5"/>
+          <circle cx="188" cy="128" r="2.5" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="0.5"/>
+          <!-- Top status LED strip -->
+          <g transform="translate(64, 4)">
+            <rect x="0" y="0" width="3" height="1.5" rx="0.5" fill="#10B981"/>
+            <rect x="12" y="0" width="3" height="1.5" rx="0.5" fill="#22C55E"/>
+            <rect x="24" y="0" width="3" height="1.5" rx="0.5" fill="#10B981"/>
+            <rect x="36" y="0" width="3" height="1.5" rx="0.5" fill="#22C55E"/>
+            <rect x="48" y="0" width="3" height="1.5" rx="0.5" fill="#22C55E"/>
+            <rect x="60" y="0" width="3" height="1.5" rx="0.5" fill="#10B981"/>
+            <rect x="72" y="0" width="3" height="1.5" rx="0.5" fill="#22C55E"/>
+            <rect x="84" y="0" width="3" height="1.5" rx="0.5" fill="#22C55E"/>
+            <rect x="96" y="0" width="3" height="1.5" rx="0.5" fill="#10B981"/>
+          </g>
+          <!-- ── Port Area (right of left panel, offset by panelX=39) ── -->
+          <!-- Copper ports: GE1-GE4 -->
+          <g transform="translate(43, 18)">
+            <!-- GE1 -->
+            <rect x="0" y="0" width="42" height="14" rx="1.5" fill="#3D3D3D" stroke="#6B7280" strokeWidth="0.6"/>
+            <text x="21" y="10.5" textAnchor="middle" fontSize="4" fill="#9CA3AF" fontFamily="'Microsoft YaHei', sans-serif" fontWeight="500">GE1</text>
+            <circle cx="3" cy="3" r="1" fill="#22C55E" opacity="1"/>
+            <circle cx="39" cy="3" r="1" fill="#F59E0B" opacity="0.6"/>
+            <!-- GE2 -->
+            <rect x="52" y="0" width="42" height="14" rx="1.5" fill="#3D3D3D" stroke="#6B7280" strokeWidth="0.6"/>
+            <text x="73" y="10.5" textAnchor="middle" fontSize="4" fill="#9CA3AF" fontFamily="'Microsoft YaHei', sans-serif" fontWeight="500">GE2</text>
+            <circle cx="55" cy="3" r="1" fill="#22C55E" opacity="1"/>
+            <circle cx="91" cy="3" r="1" fill="#F59E0B" opacity="0.6"/>
+            <!-- GE3 -->
+            <rect x="0" y="22" width="42" height="14" rx="1.5" fill="#3D3D3D" stroke="#6B7280" strokeWidth="0.6"/>
+            <text x="21" y="32.5" textAnchor="middle" fontSize="4" fill="#9CA3AF" fontFamily="'Microsoft YaHei', sans-serif" fontWeight="500">GE3</text>
+            <circle cx="3" cy="25" r="1" fill="#22C55E" opacity="1"/>
+            <circle cx="39" cy="25" r="1" fill="#F59E0B" opacity="0.6"/>
+            <!-- GE4 -->
+            <rect x="52" y="22" width="42" height="14" rx="1.5" fill="#3D3D3D" stroke="#6B7280" strokeWidth="0.6"/>
+            <text x="73" y="32.5" textAnchor="middle" fontSize="4" fill="#9CA3AF" fontFamily="'Microsoft YaHei', sans-serif" fontWeight="500">GE4</text>
+            <circle cx="55" cy="25" r="1" fill="#22C55E" opacity="1"/>
+            <circle cx="91" cy="25" r="1" fill="#F59E0B" opacity="0.6"/>
+            <!-- SFPs -->
+            <!-- SFP1 -->
+            <rect x="0" y="44" width="42" height="15" rx="1.5" fill="#1E3A5F" stroke="#5A80A8" strokeWidth="0.6"/>
+            <text x="21" y="54.5" textAnchor="middle" fontSize="4" fill="#9CA3AF" fontFamily="'Microsoft YaHei', sans-serif" fontWeight="500">SFP1</text>
+            <circle cx="3" cy="47" r="1" fill="#22C55E" opacity="1"/>
+            <circle cx="39" cy="47" r="1" fill="#F59E0B" opacity="0.6"/>
+            <!-- SFP2 -->
+            <rect x="52" y="44" width="42" height="15" rx="1.5" fill="#1E3A5F" stroke="#5A80A8" strokeWidth="0.6"/>
+            <text x="73" y="54.5" textAnchor="middle" fontSize="4" fill="#9CA3AF" fontFamily="'Microsoft YaHei', sans-serif" fontWeight="500">SFP2</text>
+            <circle cx="55" cy="47" r="1" fill="#22C55E" opacity="1"/>
+            <circle cx="91" cy="47" r="1" fill="#F59E0B" opacity="0.6"/>
+          </g>
+          <!-- Device label at bottom -->
+          <text x="102" y="138" textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
+                fontSize="6" fontWeight="600" fill="#475569">SDWAN CPE Gateway</text>
+        </svg>
+      </div>
+      <div class="details">
+        防火墙同款 chassis · 4×GE+2×SFP<br>
+        H3C / Huawei SDWAN 网关设备
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;margin-top:32px;color:#6B7280;font-size:12px;">
+    💡 以上 SVG 将使用 CSS 变量适配浅色/鎏金双主题 · 请在浏览器中查看效果
+  </div>
+</div>
+</body>
+</html>

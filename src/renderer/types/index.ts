@@ -52,8 +52,17 @@ export interface DeviceModel {
   vendor_name?: string
 }
 
+// V1.5.0: 互联网应用多图上传
+export interface AppImageItem {
+  id: string       // 唯一标识 (crypto.randomUUID())
+  dataUrl: string  // base64 data URL
+  offsetX: number  // viewBox 内 x 偏移
+  offsetY: number  // viewBox 内 y 偏移
+  scale: number    // 缩放因子 (0.15~3.0)
+}
+
 // Connection type
-export type ConnectionType = 'ethernet' | 'fiber' | 'stack' | 'wireless'
+export type ConnectionType = 'ethernet' | 'fiber' | 'stack' | 'wireless' | 'tunnel'
 
 // Animation style
 export type AnimationStyle = 'none' | 'particle' | 'glow' | 'wave'
@@ -79,11 +88,20 @@ export interface EdgeData {
   particleSize?: number     // 粒子大小 2-12px，默认 4.5
   effectColor?: string      // 特效颜色 hex，默认 #2196F3
   elbowOffset?: number       // 肘形连接线偏移量 10-400px，默认 50。用于区分多条并行肘形线缆
+  elbowHorizontalOffset?: number  // 肘形连接线水平偏移 -200~200px，默认 0。左右调节肘形垂直段位置
+  edgeDescription?: string   // 线缆业务说明，编辑后在鼠标悬浮1.5s后显示
   // V0.8.1: Port label drag offsets — user-dragged label positions relative to default anchor
   sourcePortOffsetX?: number  // 源端口标签水平拖拽偏移 (px)，默认 0
   sourcePortOffsetY?: number  // 源端口标签垂直拖拽偏移 (px)，默认 0
   targetPortOffsetX?: number  // 目标端口标签水平拖拽偏移 (px)，默认 0
   targetPortOffsetY?: number  // 目标端口标签垂直拖拽偏移 (px)，默认 0
+  // V1.5.1: Interface IP labels
+  sourceIp?: string
+  targetIp?: string
+  sourceIpOffsetX?: number
+  sourceIpOffsetY?: number
+  targetIpOffsetX?: number
+  targetIpOffsetY?: number
 }
 
 // Node data
@@ -92,6 +110,11 @@ export interface NodeData {
   device: DeviceModel
   customName?: string
   customImage?: string
+  // V1.5.0: 互联网应用自定义业务图片（多图 + 自由缩放）
+  appImages?: AppImageItem[]
+  // @deprecated V1.5.0: migrated to appImages[0] on load
+  appImage?: string
+  appImageOffset?: { x: number; y: number }
   customCategory?: string
   customVendor?: string
   customDeviceModel?: string
@@ -101,6 +124,9 @@ export interface NodeData {
   ipAddress?: string
   // V0.9.0: Device stacking mode
   isStacked?: boolean
+  // V1.3.0: SDWAN CPE tunnel ports
+  hasTunnelPorts?: boolean
+  tunnelPortCount?: number  // V1.5.1: tunnel 端口数量，默认 2
   // V0.9.1: Port numbering options
   portZeroBased?: boolean   // When true, ports start from GE0 instead of GE1
   portInterleaved?: boolean  // When true, ports are numbered column-major (alternating rows)
@@ -110,6 +136,54 @@ export interface NodeData {
   groupName?: string
 }
 
+// ── Rack Cabinet Types ─────────────────────────────────
+
+/** Rack accessory type */
+export type RackAccessoryType = 'cable-management' | 'blanking-panel' | 'pdu'
+
+/** Rack accessory configuration (stored in RackNodeData, not as React Flow nodes) */
+export interface RackAccessory {
+  id: string
+  type: RackAccessoryType
+  uPosition: number   // 0-based starting U position from top
+  uHeight: number     // height in U units (1 for cable mgmt/blind, variable for PDU)
+  label?: string
+}
+
+/** Rack view mode — front (机柜正面) shows device faceplates, back (机柜背面) shows rear panels */
+export type RackViewMode = 'front' | 'back'
+
+/** Rack node data (for 'rackNode' type) */
+export interface RackNodeData {
+  uHeight: number
+  label: string
+  viewMode: RackViewMode
+  accessories: RackAccessory[]
+}
+
+/** Rack device node data (for 'rackDeviceNode' type) */
+export interface RackDeviceNodeData {
+  device: DeviceModel
+  customName?: string
+  customColor?: string
+  customCategory?: string
+  customVendor?: string
+  customDeviceModel?: string
+  customPorts?: string
+  customPortsRJ45?: number
+  customPortsSFP?: number
+  customPortsSFP28?: number
+  portZeroBased?: boolean
+  portInterleaved?: boolean
+  businessNote?: string
+  uHeight: number           // U slots occupied (default based on category, user-adjustable)
+  uPosition?: number        // V1.1.2: current 1-based U position in rack (computed from node position.y)
+  parentViewMode?: RackViewMode  // V1.1.1: synced from parent rack so child re-renders on toggle
+  powerSupplyCount?: number  // V1.1.2: number of power supplies (editable, shown on back panel)
+  description?: string
+  ipAddress?: string
+}
+
 // Topo file format
 export interface TopoFile {
   version: string
@@ -117,7 +191,9 @@ export interface TopoFile {
     id: string
     type: string
     position: { x: number; y: number }
-    data: NodeData
+    parentId?: string       // V1.1.0: rack parent-child relationship
+    extent?: 'parent'       // V1.1.0: constrain child to parent bounds
+    data: NodeData | RackNodeData | RackDeviceNodeData
   }>
   edges: Array<{
     id: string
@@ -133,21 +209,33 @@ export interface TopoFile {
 
 import type { Node as RFNode, Edge as RFEdge } from '@xyflow/react'
 
-/** React Flow node typed with Topo's NodeData */
-export type TopoNode = RFNode<NodeData>
+/** All possible node data types */
+export type AnyNodeData = NodeData | RackNodeData | RackDeviceNodeData
+
+/** React Flow node typed with Topo node data */
+export type TopoNode = RFNode
 
 /** React Flow edge typed with Topo's EdgeData */
 export type TopoEdge = RFEdge<EdgeData>
 
 /** Safely extract device info from a node's data (avoid scattering `as any`) */
 export function getDeviceFromNode(node: RFNode): DeviceModel | undefined {
-  const data = node?.data as NodeData | undefined
-  return data?.device
+  const data = node?.data as unknown as AnyNodeData | undefined
+  if (!data) return undefined
+  // Both NodeData and RackDeviceNodeData have a 'device' field
+  return (data as NodeData | RackDeviceNodeData).device
 }
 
 /** Safely extract NodeData from a generic React Flow node */
 export function getNodeData(node: RFNode): NodeData | undefined {
-  return node?.data as NodeData | undefined
+  const data = node?.data as unknown as AnyNodeData | undefined
+  if (!data) return undefined
+  // NodeData has 'device' but NOT 'uHeight' (unlike RackDeviceNodeData).
+  // RackNodeData has no 'device' at all. This correctly distinguishes the three types.
+  if ('device' in data && !('uHeight' in data)) {
+    return data as NodeData
+  }
+  return undefined
 }
 
 /** Safely extract EdgeData from a generic React Flow edge */

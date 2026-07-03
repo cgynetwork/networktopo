@@ -24,20 +24,34 @@ import ConfirmDialog from './components/ConfirmDialog/ConfirmDialog'
 import CanvasContextMenu from './components/CanvasContextMenu'
 import type { ContextMenuState } from './components/CanvasContextMenu'
 import PromptDialog from './components/PromptDialog/PromptDialog'
+import RackDevicePickerModal from './components/RackDevicePickerModal'
 import DeviceNode from './components/nodes/DeviceNode'
+import RackNode from './components/nodes/RackNode'
+import RackDeviceNode from './components/nodes/RackDeviceNode'
 import AnimatedEdge from './components/edges/AnimatedEdge'
-import type { DeviceRow, EdgeData, PathStyle } from './types'
+import type { DeviceRow, EdgeData, PathStyle, RackNodeData, RackDeviceNodeData, RackViewMode } from './types'
 import { getDeviceFromNode, getNodeData } from './types'
 import { getDefaultPortLabel, listAllPorts } from './utils/portParser'
+import {
+  RACK_HEADER_H, RACK_RAIL_W, U_PX_HEIGHT,
+  getRackNodeWidth, getRackHeight, getDefaultUHeight,
+  findFreeUSlot, snapToUSlot, isPositionInRack, getOccupiedSlots,
+  uPositionToPixelY, pixelYToUPosition, clampDeviceInRack,
+  pixelYToUDisplay, migrateViewMode,
+} from './utils/rackUtils'
 import { useHistory } from './hooks/useHistory'
 import { useGifExport } from './hooks/useGifExport'
 import { useFileOperations } from './hooks/useFileOperations'
 import { useTheme } from './context/ThemeContext'
 import { useToast } from './context/ToastContext'
+import { DragStateContext } from './context/DragStateContext'
+import { DemoModeContext } from './context/DemoModeContext'
 
 // Custom node and edge types for React Flow
 const nodeTypes = {
   deviceNode: DeviceNode,
+  rackNode: RackNode,
+  rackDeviceNode: RackDeviceNode,
 }
 
 const edgeTypes = {
@@ -66,11 +80,18 @@ export default function App() {
   const [panelCollapsed, setPanelCollapsed] = useState(true)
   const [showGrid, setShowGrid] = useState(true)
   const [snapEnabled, setSnapEnabled] = useState(true)
+  const [isDemoMode, setIsDemoMode] = useState(false)
+  const toggleDemoMode = useCallback(() => setIsDemoMode(prev => !prev), [])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [templateList, setTemplateList] = useState<{ name: string; file: string }[]>([])
   const [viewportZoom, setViewportZoom] = useState(1)
+  // V1.1.1: Drag hover highlight — track which rack a device is being dragged over
+  const [dragOverRackId, setDragOverRackId] = useState<string | null>(null)
+  const dragOverRackIdRef = useRef<string | null>(null)
+  // V1.1.1: Device picker modal for adding devices to rack via context menu
+  const [rackDevicePicker, setRackDevicePicker] = useState<{ rackId: string } | null>(null)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const nodesRef = useRef(nodes)
@@ -164,6 +185,12 @@ export default function App() {
       const srcIsStack = connection.sourceHandle === 'STACK'
       const tgtIsStack = connection.targetHandle === 'STACK'
       if (srcIsStack !== tgtIsStack) return false
+      // V1.3.0: TUNNEL port can only connect to CP-LEFT/CP-RIGHT (SDWAN Node)
+      const srcIsTunnel = connection.sourceHandle?.startsWith('TUNNEL-')
+      const tgtIsTunnel = connection.targetHandle?.startsWith('TUNNEL-')
+      const srcIsCp = connection.sourceHandle?.startsWith('CP-')
+      const tgtIsCp = connection.targetHandle?.startsWith('CP-')
+      if ((srcIsTunnel && !tgtIsCp) || (tgtIsTunnel && !srcIsCp)) return false
       // V0.9.3: WLAN port can only connect to WLAN port or Wireless AP
       const srcIsWlan = connection.sourceHandle === 'WLAN'
       const tgtIsWlan = connection.targetHandle === 'WLAN'
@@ -221,6 +248,8 @@ export default function App() {
 
       // V0.9.0: Auto-detect STACK-to-STACK connection
       const isStackConnection = connection.sourceHandle === 'STACK' && connection.targetHandle === 'STACK'
+      // V1.3.0: Auto-detect TUNNEL-to-CP connection
+      const isTunnelConnection = (!!connection.sourceHandle?.startsWith('TUNNEL-')) || (!!connection.targetHandle?.startsWith('TUNNEL-'))
       // V0.9.3: Auto-detect WLAN connection
       const isWirelessConnection = connection.sourceHandle === 'WLAN' || connection.targetHandle === 'WLAN'
 
@@ -234,6 +263,7 @@ export default function App() {
               sourcePort,
               targetPort,
               ...(isStackConnection ? { connectionType: 'stack', pathStyle: 'step' as PathStyle } : {}),
+              ...(isTunnelConnection ? { connectionType: 'tunnel' as EdgeData['connectionType'], pathStyle: 'step' as PathStyle } : {}),
               ...(isWirelessConnection ? { connectionType: 'wireless' as EdgeData['connectionType'], animationStyle: 'wave' as EdgeData['animationStyle'] } : {}),
             },
           },
@@ -351,6 +381,7 @@ export default function App() {
           y: event.clientY,
           type: 'node',
           id: node.id,
+          nodeType: node.type,
         })
       }
     },
@@ -442,6 +473,64 @@ export default function App() {
     setContextMenu(null)
     toast.showToast(`已取消分组（${groupedCount} 台设备）`, 'info')
   }, [contextMenu, setNodes, edges, history, toast])
+
+  // ── V1.1.1: Add device to rack via context menu ──────────
+  const handleAddDeviceToRack = useCallback(() => {
+    if (!contextMenu || contextMenu.type !== 'node') return
+    const rackId = contextMenu.id
+    setContextMenu(null)
+    setRackDevicePicker({ rackId })
+  }, [contextMenu])
+
+  // ── V1.1.1: Confirm adding device from picker ────────────
+  const handlePickDeviceForRack = useCallback((device: DeviceRow, rackId: string) => {
+    const currentNodes = nodesRef.current
+    const targetRack = currentNodes.find(n => n.id === rackId)
+    if (!targetRack) return
+    const rackData = targetRack.data as unknown as RackNodeData
+    const targetUHeight = getDefaultUHeight(device.category_name)
+
+    // Collect occupied slots
+    const childNodes = currentNodes.filter(n => n.parentId === rackId)
+    const occupiedSlots = getOccupiedSlots(
+      childNodes.map(n => ({
+        uPosition: pixelYToUPosition(n.position.y),
+        uHeight: (n.data as unknown as RackDeviceNodeData).uHeight || 1,
+      })),
+      rackData.accessories || [],
+    )
+
+    const freeU = findFreeUSlot(rackData.uHeight, targetUHeight, occupiedSlots)
+    if (freeU < 0) {
+      toast.showToast('机柜空间不足，无法放入该设备', 'warning')
+      setRackDevicePicker(null)
+      return
+    }
+
+    history.pushSnapshot(currentNodes, edges)
+    const newNode: Node = {
+      id: `device-${Date.now()}`,
+      type: 'rackDeviceNode',
+      parentId: rackId,
+      extent: 'parent' as const,
+      position: {
+        x: RACK_RAIL_W + 4,
+        y: uPositionToPixelY(freeU),
+      },
+      data: {
+        device,
+        customName: '',
+        uHeight: targetUHeight,
+        uPosition: rackData.uHeight - freeU,
+        parentViewMode: rackData.viewMode,
+        powerSupplyCount: 1,
+      } as unknown as Record<string, unknown>,
+    }
+    setNodes((nds) => [...nds, newNode])
+    setIsDirty(true)
+    setRackDevicePicker(null)
+    toast.showToast(`已添加 ${device.vendor_name} ${device.model} 到 ${rackData.label}`, 'success')
+  }, [edges, history, setNodes, toast])
 
   // ── Copy node (single selection) ──────────────────────────
   const handleCopyNode = useCallback(() => {
@@ -575,7 +664,16 @@ export default function App() {
     try {
       const content = await window.electronAPI.loadTemplate(templateName)
       const topoFile = JSON.parse(content)
-      const loadedNodes = (topoFile.nodes || []).map((n: Node) => ({ ...n, type: n.type || 'deviceNode' }))
+      const loadedNodes = (topoFile.nodes || []).map((n: Node) => {
+        const data = n.data as Record<string, unknown> | undefined
+        if (data && 'viewMode' in data) {
+          data.viewMode = migrateViewMode(data.viewMode as string | undefined)
+        }
+        if (data && 'parentViewMode' in data) {
+          data.parentViewMode = migrateViewMode(data.parentViewMode as string | undefined)
+        }
+        return { ...n, type: n.type || 'deviceNode', data }
+      })
       const loadedEdges = (topoFile.edges || []).map((e: Edge) => ({ ...e, type: e.type || 'animated', data: { ...defaultEdgeData, ...e.data } }))
       history.pushSnapshot(nodesRef.current, edges)
       setNodes(loadedNodes)
@@ -620,29 +718,139 @@ export default function App() {
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
-  }, [])
+
+    // V1.1.1: Detect which rack (if any) is under cursor for hover highlight
+    if (event.dataTransfer.types.includes('application/topo-device') && rfInstance && reactFlowWrapper.current) {
+      const bounds = reactFlowWrapper.current.getBoundingClientRect()
+      const position = rfInstance.screenToFlowPosition({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      })
+      const hoveredRack = nodesRef.current.find((n) => {
+        if (n.type !== 'rackNode') return false
+        const rd = n.data as unknown as RackNodeData
+        return isPositionInRack(position.x, position.y, {
+          position: n.position,
+          data: { uHeight: rd.uHeight, viewMode: rd.viewMode },
+        })
+      })
+      const newId = hoveredRack?.id ?? null
+      if (dragOverRackIdRef.current !== newId) {
+        dragOverRackIdRef.current = newId
+        setDragOverRackId(newId)
+      }
+    } else {
+      if (dragOverRackIdRef.current !== null) {
+        dragOverRackIdRef.current = null
+        setDragOverRackId(null)
+      }
+    }
+  }, [rfInstance])
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault()
+      if (!reactFlowWrapper.current || !rfInstance) return
 
-      const dataStr = event.dataTransfer.getData('application/topo-device')
-      if (!dataStr || !reactFlowWrapper.current || !rfInstance) return
-
-      const device: DeviceRow = JSON.parse(dataStr)
-
-      // Convert screen coordinates to flow coordinates
       const bounds = reactFlowWrapper.current.getBoundingClientRect()
       const position = rfInstance.screenToFlowPosition({
         x: event.clientX - bounds.left,
         y: event.clientY - bounds.top,
       })
 
+      // ── Case 1: Drop a rack cabinet ──────────────────────
+      const rackDataStr = event.dataTransfer.getData('application/topo-rack')
+      if (rackDataStr) {
+        const rackSize: { uHeight: number; label: string } = JSON.parse(rackDataStr)
+        const rackWidth = getRackNodeWidth('front')
+        const newNode: Node = {
+          id: `rack-${Date.now()}`,
+          type: 'rackNode',
+          position: {
+            x: position.x - rackWidth / 2,
+            y: position.y - RACK_HEADER_H,
+          },
+          data: {
+            uHeight: rackSize.uHeight,
+            label: rackSize.label,
+            viewMode: 'front' as const,
+            accessories: [],
+          } as unknown as Record<string, unknown>,
+        }
+        history.pushSnapshot(nodesRef.current, edges)
+        setNodes((nds) => [...nds, newNode])
+        setIsDirty(true)
+        return
+      }
+
+      // ── Case 2: Drop a device (standalone or into rack) ──
+      const deviceDataStr = event.dataTransfer.getData('application/topo-device')
+      if (!deviceDataStr) return
+
+      const device: DeviceRow = JSON.parse(deviceDataStr)
+
+      // Check if drop position is inside any rack
+      const currentNodes = nodesRef.current
+      const targetRack = currentNodes.find((n) => {
+        if (n.type !== 'rackNode') return false
+        const rackData = n.data as unknown as RackNodeData
+        return isPositionInRack(position.x, position.y, {
+          position: n.position,
+          data: { uHeight: rackData.uHeight, viewMode: rackData.viewMode },
+        })
+      })
+
+      if (targetRack) {
+        // ── Place device inside the rack ───────────────────
+        const rackData = targetRack.data as unknown as RackNodeData
+        const targetUHeight = getDefaultUHeight(device.category_name)
+
+        // Collect occupied slots from existing child devices and accessories
+        const childNodes = currentNodes.filter((n) => n.parentId === targetRack.id)
+        const occupiedSlots = getOccupiedSlots(
+          childNodes.map((n) => ({
+            uPosition: pixelYToUPosition(n.position.y),
+            uHeight: (n.data as unknown as RackDeviceNodeData).uHeight || 1,
+          })),
+          rackData.accessories || [],
+        )
+
+        const freeU = findFreeUSlot(rackData.uHeight, targetUHeight, occupiedSlots)
+        if (freeU < 0) {
+          toast.showToast('机柜空间不足，无法放入该设备', 'warning')
+          return
+        }
+
+        history.pushSnapshot(currentNodes, edges)
+        const newNode: Node = {
+          id: `device-${Date.now()}`,
+          type: 'rackDeviceNode',
+          parentId: targetRack.id,
+          extent: 'parent' as const,
+          position: {
+            x: RACK_RAIL_W + 4,
+            y: uPositionToPixelY(freeU),
+          },
+          data: {
+            device,
+            customName: '',
+            uHeight: targetUHeight,
+            uPosition: rackData.uHeight - freeU,
+            parentViewMode: rackData.viewMode,
+            powerSupplyCount: 1,
+          } as unknown as Record<string, unknown>,
+        }
+        setNodes((nds) => [...nds, newNode])
+        setIsDirty(true)
+        return
+      }
+
+      // ── Case 3: Drop as standalone device on canvas ─────
       const newNode: Node = {
         id: `device-${Date.now()}`,
         type: 'deviceNode',
         position: {
-          x: position.x - 90, // center the node (half of minWidth)
+          x: position.x - 90,
           y: position.y - 30,
         },
         data: {
@@ -651,11 +859,126 @@ export default function App() {
         },
       }
 
-      history.pushSnapshot(nodesRef.current, edges)
+      history.pushSnapshot(currentNodes, edges)
       setNodes((nds) => [...nds, newNode])
       setIsDirty(true)
     },
-    [rfInstance, setNodes, edges, history],
+    [rfInstance, setNodes, edges, history, toast],
+  )
+
+  // ── Double-click node ──────────────────────────────────
+  const onNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      if (node.type !== 'rackNode') return
+      console.log('[DEBUG onNodeDoubleClick] START — node.id:', node.id)
+      const rackData = node.data as unknown as RackNodeData
+      console.log('[DEBUG onNodeDoubleClick] rackData:', { uHeight: rackData.uHeight, viewMode: rackData.viewMode, label: rackData.label })
+      const newMode: RackViewMode = rackData.viewMode === 'front' ? 'back' : 'front'
+      console.log('[DEBUG onNodeDoubleClick] newMode:', newMode)
+      try {
+        history.pushSnapshot(nodesRef.current, edges)
+        console.log('[DEBUG onNodeDoubleClick] pushSnapshot done, calling setNodes...')
+        setNodes((nds) => {
+          console.log('[DEBUG onNodeDoubleClick] setNodes updater — nds count:', nds.length)
+          const updated = nds.map((n) => {
+            // Toggle the rack node's viewMode
+            if (n.id === node.id) {
+              console.log('[DEBUG onNodeDoubleClick] toggling rack node:', n.id)
+              return {
+                ...n,
+                data: { ...n.data, viewMode: newMode } as unknown as Record<string, unknown>,
+              }
+            }
+            // Sync parentViewMode to all child devices so they re-render
+            if (n.parentId === node.id && n.type === 'rackDeviceNode') {
+              console.log('[DEBUG onNodeDoubleClick] syncing child node:', n.id)
+              return {
+                ...n,
+                data: { ...n.data, parentViewMode: newMode } as unknown as Record<string, unknown>,
+              }
+            }
+            return n
+          })
+          console.log('[DEBUG onNodeDoubleClick] setNodes updater — done, returning', updated.length, 'nodes')
+          return updated
+        })
+        setIsDirty(true)
+        console.log('[DEBUG onNodeDoubleClick] DONE')
+      } catch (err) {
+        console.error('[DEBUG onNodeDoubleClick] ERROR:', err)
+      }
+    },
+    [setNodes, edges, history],
+  )
+
+  // ── U-slot snapping on drag stop ────────────────────────
+  const onNodeDragStop = useCallback(
+    (_event: any, node: Node) => {
+      if (node.type !== 'rackDeviceNode' || !node.parentId) return
+
+      const parentRack = nodesRef.current.find(n => n.id === node.parentId)
+      if (!parentRack || parentRack.type !== 'rackNode') return
+
+      const rackData = parentRack.data as unknown as RackNodeData
+      const deviceData = node.data as unknown as RackDeviceNodeData
+      const deviceUHeight = deviceData.uHeight || 1
+
+      // Snap Y to nearest U slot and clamp within rack boundaries
+      let snappedY = snapToUSlot(node.position.y, deviceUHeight, rackData.uHeight)
+      // Extra safety: clamp device so its full height stays inside rack
+      snappedY = clampDeviceInRack(snappedY, deviceUHeight, rackData.uHeight)
+
+      // Check for slot conflicts with other devices in the same rack
+      const snappedU = pixelYToUPosition(snappedY)
+      const siblings = nodesRef.current.filter(
+        n => n.parentId === node.parentId && n.id !== node.id,
+      )
+      const occupiedSlots = getOccupiedSlots(
+        siblings.map(n => ({
+          uPosition: pixelYToUPosition(n.position.y),
+          uHeight: (n.data as unknown as RackDeviceNodeData).uHeight || 1,
+        })),
+        rackData.accessories || [],
+      )
+
+      // Check if the snapped position overlaps with occupied slots
+      const occupied = new Array<boolean>(rackData.uHeight).fill(false)
+      for (const slot of occupiedSlots) {
+        for (let i = slot.uPosition; i < slot.uPosition + slot.uHeight && i < rackData.uHeight; i++) {
+          occupied[i] = true
+        }
+      }
+      let conflict = false
+      for (let i = snappedU; i < snappedU + deviceUHeight && i < rackData.uHeight; i++) {
+        if (occupied[i]) { conflict = true; break }
+      }
+
+      if (conflict) {
+        // Bounce back to original position (don't update)
+        return
+      }
+
+      // Only update if position actually changed
+      if (Math.abs(node.position.x - RACK_RAIL_W - 4) > 2 || Math.abs(node.position.y - snappedY) > 2) {
+        setNodes((nds) =>
+          nds.map((n) => {
+            if (n.id === node.id) {
+              return {
+                ...n,
+                position: { x: RACK_RAIL_W + 4, y: snappedY },
+                data: {
+                  ...n.data,
+                  uPosition: pixelYToUDisplay(snappedY, rackData.uHeight),
+                } as unknown as Record<string, unknown>,
+              }
+            }
+            return n
+          }),
+        )
+        setIsDirty(true)
+      }
+    },
+    [setNodes],
   )
 
   // ── Node data update ────────────────────────────────────
@@ -665,11 +988,26 @@ export default function App() {
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id === nodeId) {
-            return { ...node, data: { ...node.data, ...newData } }
+            const merged = { ...node, data: { ...node.data, ...newData } }
+            return merged
+          }
+          // If a rack node's viewMode changed, sync parentViewMode to all its children
+          if ('viewMode' in newData && node.parentId === nodeId && node.type === 'rackDeviceNode') {
+            return {
+              ...node,
+              data: { ...node.data, parentViewMode: newData.viewMode } as unknown as Record<string, unknown>,
+            }
           }
           return node
         })
       )
+      // Sync selectedNode so PropertyPanel shows real-time updates
+      setSelectedNode((prev) => {
+        if (prev && prev.id === nodeId) {
+          return { ...prev, data: { ...prev.data, ...newData } }
+        }
+        return prev
+      })
       setIsDirty(true)
     },
     [setNodes, edges, history],
@@ -960,6 +1298,15 @@ export default function App() {
             history.pushSnapshot(nodesRef.current, edges)
             setIsDirty(true)
           }
+          // V1.1.0: If removing a rack node, also remove its child devices
+          const removedNode = nodesRef.current.find(n => n.id === c.id)
+          if (removedNode?.type === 'rackNode') {
+            onNodesChange(
+              nodesRef.current
+                .filter(n => n.parentId === c.id)
+                .map(n => ({ id: n.id, type: 'remove' as const }))
+            )
+          }
         }
         if (c.type === 'dimensions' && c.dimensions && c.resizing === true && !isDraggingRef.current) {
           // Node resize started — snapshot
@@ -1042,10 +1389,16 @@ export default function App() {
     if (!content) return
     try {
       const topoFile = JSON.parse(content)
-      const loadedNodes = (topoFile.nodes || []).map((n: Node) => ({
-        ...n,
-        type: n.type || 'deviceNode',
-      }))
+      const loadedNodes = (topoFile.nodes || []).map((n: Node) => {
+        const data = n.data as Record<string, unknown> | undefined
+        if (data && 'viewMode' in data) {
+          data.viewMode = migrateViewMode(data.viewMode as string | undefined)
+        }
+        if (data && 'parentViewMode' in data) {
+          data.parentViewMode = migrateViewMode(data.parentViewMode as string | undefined)
+        }
+        return { ...n, type: n.type || 'deviceNode', data }
+      })
       const loadedEdges = (topoFile.edges || []).map((e: Edge) => ({
         ...e,
         type: e.type || 'animated',
@@ -1233,6 +1586,8 @@ export default function App() {
         onToggleGrid={() => setShowGrid(!showGrid)}
         snapEnabled={snapEnabled}
         onToggleSnap={() => setSnapEnabled(!snapEnabled)}
+        isDemoMode={isDemoMode}
+        onToggleDemoMode={toggleDemoMode}
         onOpenSearch={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -1278,6 +1633,8 @@ export default function App() {
 
         {/* Canvas */}
         <div className="flex-1 relative" ref={reactFlowWrapper}>
+          <DemoModeContext.Provider value={{ isDemoMode, toggleDemoMode }}>
+          <DragStateContext.Provider value={{ dragOverRackId, isDraggingDevice: dragOverRackId !== null }}>
           <ReactFlowProvider>
             <ReactFlow
               nodes={nodes}
@@ -1297,6 +1654,8 @@ export default function App() {
               onInit={setRfInstance}
               onDragOver={onDragOver}
               onDrop={onDrop}
+              onNodeDragStop={onNodeDragStop}
+              onNodeDoubleClick={onNodeDoubleClick}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               fitView
@@ -1335,12 +1694,14 @@ export default function App() {
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                 <div className="text-center text-text-secondary select-none">
                   <div className="text-4xl mb-3">📐</div>
-                  <p className="text-base mb-1">从左侧拖拽设备到此处开始绘制拓扑</p>
-                  <p className="text-sm">滚轮缩放 · 拖拽平移 · 从连接点连线</p>
+                  <p className="text-base mb-1">从左侧拖拽设备或机柜到此处开始绘制拓扑</p>
+                  <p className="text-sm">将设备拖入机柜即可自动装配 · 滚轮缩放 · 拖拽平移</p>
                 </div>
               </div>
             )}
           </ReactFlowProvider>
+          </DragStateContext.Provider>
+          </DemoModeContext.Provider>
 
           {/* ── Canvas search overlay ── */}
           {searchOpen && (
@@ -1439,6 +1800,11 @@ export default function App() {
                 contextMenu.type === 'batch' &&
                 nodesRef.current.filter(n => n.selected).some(n => !!getNodeData(n)?.groupName)
               }
+              onAddDeviceToRack={handleAddDeviceToRack}
+              isRackNode={
+                contextMenu.type === 'node' &&
+                contextMenu.nodeType === 'rackNode'
+              }
             />
           )}
         </div>
@@ -1529,6 +1895,15 @@ export default function App() {
           promptResolveRef.current?.(null)
         }}
       />
+
+      {/* ── V1.1.1: Rack device picker modal ── */}
+      {rackDevicePicker && (
+        <RackDevicePickerModal
+          rackId={rackDevicePicker.rackId}
+          onSelect={(device) => handlePickDeviceForRack(device, rackDevicePicker.rackId)}
+          onClose={() => setRackDevicePicker(null)}
+        />
+      )}
 
     </div>
   )

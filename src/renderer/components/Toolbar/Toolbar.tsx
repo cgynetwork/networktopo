@@ -36,6 +36,8 @@ interface ToolbarProps {
   onToggleGrid?: () => void
   snapEnabled?: boolean
   onToggleSnap?: () => void
+  isDemoMode?: boolean
+  onToggleDemoMode?: () => void
   onOpenSearch?: () => void
   onZoomIn?: () => void
   onZoomOut?: () => void
@@ -82,6 +84,8 @@ export default function Toolbar({
   onToggleGrid,
   snapEnabled,
   onToggleSnap,
+  isDemoMode,
+  onToggleDemoMode,
   onOpenSearch,
   onZoomIn,
   onZoomOut,
@@ -222,7 +226,7 @@ export default function Toolbar({
           {isDirty && <span className="text-amber-500 mr-0.5">•</span>}
           Topo
         </span>
-        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.0.0</span>
+        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.1.0</span>
         {/* V0.9.2: Asset statistics with hover tooltip */}
         <div
           className="relative"
@@ -306,6 +310,18 @@ export default function Toolbar({
           title={snapEnabled ? '关闭吸附' : '开启吸附'}
         >
           ⊡
+        </button>
+        {/* Demo mode toggle */}
+        <button
+          onClick={onToggleDemoMode}
+          className={`w-8 h-8 flex items-center justify-center rounded border transition-colors ${
+            isDemoMode
+              ? 'border-accent text-accent bg-accent-bg'
+              : 'border-border text-text-secondary hover:bg-hover-bg'
+          }`}
+          title={isDemoMode ? '退出演示模式' : '演示模式'}
+        >
+          🎬
         </button>
         {/* Search */}
         <button

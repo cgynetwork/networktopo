@@ -1,10 +1,11 @@
 import { memo, useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react'
 import { NodeResizer, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
-import type { DeviceRow, EdgeData } from '../../types'
+import type { DeviceRow, EdgeData, AppImageItem } from '../../types'
 import { parsePortsInfo, getPortLayout, composePortsInfo, countLayoutRows } from '../../utils/portParser'
 import InlineEdit from './InlineEdit'
 import ConnectionHandles, { type PortHandleInfo } from './ConnectionHandles'
 import DeviceIllustration, { getDeviceLayoutParams, SVG_H_DEFAULT } from './DeviceIllustration'
+import { useDemoMode } from '../../context/DemoModeContext'
 
 // Category color mapping — uses CSS variables for dynamic theme switching
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: string; light: string }> = {
@@ -15,6 +16,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: stri
   '服务器':     { bg: 'var(--color-cat-server-bg)',   border: 'var(--color-cat-server-border)',   accent: 'var(--color-cat-server-accent)',   light: 'var(--color-cat-server-light)' },
   '终端-PC':   { bg: 'var(--color-cat-pc-bg)',       border: 'var(--color-cat-pc-border)',       accent: 'var(--color-cat-pc-accent)',       light: 'var(--color-cat-pc-light)' },
   '终端-笔记本': { bg: 'var(--color-cat-laptop-bg)',   border: 'var(--color-cat-laptop-border)',   accent: 'var(--color-cat-laptop-accent)',   light: 'var(--color-cat-laptop-light)' },
+  'SDWAN':      { bg: 'var(--color-cat-sdwan-bg)', border: 'var(--color-cat-sdwan-border)', accent: 'var(--color-cat-sdwan-accent)', light: 'var(--color-cat-sdwan-light)' },
 }
 
 const DEFAULT_COLOR = { bg: 'var(--color-cat-default-bg)', border: 'var(--color-cat-default-border)', accent: 'var(--color-cat-default-accent)', light: 'var(--color-cat-default-light)' }
@@ -26,6 +28,18 @@ function hashStr(s: string): number {
     h = ((h << 5) - h + s.charCodeAt(i)) | 0
   }
   return Math.abs(h)
+}
+
+/** V1.2.0: Get per-type accent color for SDWAN devices based on model name. */
+function getSdwanAccent(model: string): string {
+  if (model === '互联网应用') return 'var(--color-cat-sdwan-internetapp-accent)'
+  // Backward compat: old model names from V1.3.0
+  if (model === '国内互联网应用' || model === '国际互联网应用') return 'var(--color-cat-sdwan-internetapp-accent)'
+  if (model.includes('互联网')) return 'var(--color-cat-sdwan-internet-accent)'
+  if (model.includes('VPC') || model.includes('VNet') || model.includes('AWS') || model.includes('Azure') || model.includes('云')) return 'var(--color-cat-sdwan-cloud-accent)'
+  if (model.includes('数据中心') || model.includes('灾备')) return 'var(--color-cat-sdwan-datacenter-accent)'
+  if (model.includes('AR') || model.includes('MSR') || model.includes('CPE')) return 'var(--color-cat-sdwan-device-accent)'
+  return 'var(--color-cat-sdwan-node-accent)' // default: SD-WAN node
 }
 
 export interface DeviceNodeData {
@@ -43,6 +57,12 @@ export interface DeviceNodeData {
   description?: string
   ipAddress?: string
   isStacked?: boolean           // V0.9.0: 设备堆叠模式
+  hasTunnelPorts?: boolean       // V1.3.0: SDWAN CPE 隧道端口
+  tunnelPortCount?: number       // V1.5.1: 隧道端口数量（默认 2）
+  appImages?: AppImageItem[]       // V1.5.0: 互联网应用多图（替代 appImage + appImageOffset）
+  // @deprecated V1.5.0: migrated to appImages on load
+  appImage?: string
+  appImageOffset?: { x: number; y: number }
   portZeroBased?: boolean        // V0.9.1: GE0 起始编号
   portInterleaved?: boolean      // V0.9.1: 交错编号（列优先）
   groupName?: string             // V0.11.0: 分组名称
@@ -74,14 +94,30 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // V0.8.0: Access edges for used-port tracking and measure SVG offset
-  const { getEdges } = useReactFlow()
+  const { getEdges, setNodes } = useReactFlow()
   const nodeOuterRef = useRef<HTMLDivElement>(null)
   const svgContainerRef = useRef<HTMLDivElement>(null)
   const [svgOffset, setSvgOffset] = useState<{ left: number; top: number } | null>(null)
 
-  const colors = CATEGORY_COLORS[device.category_name] || DEFAULT_COLOR
-  const showBorder = selected || isHovered
-  const showHandles = selected || isHovered
+  // V1.5.0: App images state + drag/resize ref for 互联网应用
+  const [appImages, setAppImages] = useState<AppImageItem[]>([])
+  const imgDragRef = useRef<{
+    active: boolean
+    mode: 'drag' | 'resize'
+    imageId: string
+    startMouseX: number; startMouseY: number
+    startOffsetX: number; startOffsetY: number
+    startScale: number
+  }>({ active: false, mode: 'drag', imageId: '', startMouseX: 0, startMouseY: 0, startOffsetX: 0, startOffsetY: 0, startScale: 1 })
+
+  const { isDemoMode } = useDemoMode()
+  // V1.2.0: SDWAN category uses model-based accent color for visual distinction per device type
+  const baseColors = CATEGORY_COLORS[device.category_name] || DEFAULT_COLOR
+  const colors = device.category_name === 'SDWAN'
+    ? { ...baseColors, accent: getSdwanAccent(device.model) }
+    : baseColors
+  const showBorder = isDemoMode ? false : (selected || isHovered)
+  const showHandles = isDemoMode ? true : (selected || isHovered)
 
   // Resolved display values (custom override → database fallback)
   const displayCategory = nodeData.customCategory || device.category_name
@@ -101,11 +137,14 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const portGroups = parsePortsInfo(displayPorts)
   const totalPorts = portGroups.reduce((sum, g) => sum + g.count, 0)
   const computedWidth = getNodeWidth(totalPorts)
-  // Use React Flow's width if user has manually resized (it will differ from computed),
-  // otherwise use computed width based on port count
-  const nodeWidth = rfWidth && rfWidth > 0 ? rfWidth : computedWidth
-  // Use React Flow's height if user has manually resized, otherwise auto (content-determined)
-  const nodeHeight = rfHeight && rfHeight > 0 ? rfHeight : undefined
+  // Respect manual resize first. In demo mode without manual resize,
+  // use minimal width so the SVG renders tightly (not port-count driven).
+  const nodeWidth = (rfWidth && rfWidth > 0)
+    ? rfWidth
+    : (isDemoMode ? 200 : computedWidth)
+  const nodeHeight = (rfHeight && rfHeight > 0)
+    ? rfHeight
+    : undefined
   // SVG width: node body minus horizontal padding (~24px)
   const svgW = Math.max(140, nodeWidth - 24)
   // SVG height: adapt to port layout row count. Reserved: header(~30px) + info(~60px) + padding(~12px)
@@ -113,13 +152,18 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
   const layoutRows = countLayoutRows(portGroups)
   const dynamicSvgH = layoutRows > 0
     ? Math.max(SVG_H_MIN, layoutRows * 28 + 20)  // V0.7.3: 28px per row (up to 23px height + 5px gap) for fiber port headroom
-    : SVG_H_DEFAULT
+    : (isDemoMode ? SVG_H_MIN : SVG_H_DEFAULT)
   const svgH = nodeHeight
     ? Math.max(SVG_H_MIN, nodeHeight - 102)
     : dynamicSvgH
 
   // ── V0.8.0: Compute port layout and used-port tracking ──────────
-  const layoutParams = getDeviceLayoutParams(device.category_name, svgW, svgH)
+  let layoutParams = getDeviceLayoutParams(device.category_name, svgW, svgH)
+  // V1.2.0: SDWAN appliance (with ports) uses firewall-like left-panel layout
+  if (device.category_name === 'SDWAN' && displayPorts) {
+    const leftPanelW = Math.round(svgW * 0.18)
+    layoutParams = { bodyY: 8, bodyH: svgH - 16, panelX: leftPanelW + 4, portPanelSvgW: svgW - leftPanelW - 4, portPanelBodyY: 8 }
+  }
   const portLayoutAvailableW = layoutParams.portPanelSvgW - 24
   const portLayoutAvailableH = Math.max(40, layoutParams.bodyH - 12)
   const portLayout = portGroups.length > 0
@@ -158,6 +202,93 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
     })
   }
 
+  // V1.5.1: Append TUNNEL port handles dynamically based on configurable count
+  if (nodeData.hasTunnelPorts) {
+    const count = (nodeData.tunnelPortCount && nodeData.tunnelPortCount > 0) ? nodeData.tunnelPortCount : 2
+    const maxPerRow = count <= 2 ? 2 : Math.min(count, 4)
+    const rows = Math.ceil(count / maxPerRow)
+    const baseTunnelW = 22, baseTunnelGap = 8
+    // Auto-scale if more ports than can fit in a single row
+    const naturalW = count * baseTunnelW + (count - 1) * baseTunnelGap
+    const scale = naturalW > layoutParams.portPanelSvgW * 0.9
+      ? (layoutParams.portPanelSvgW * 0.9) / naturalW : 1
+    const tunnelW = Math.max(14, Math.round(baseTunnelW * scale))
+    const tunnelH = 14
+    const tunnelGap = Math.max(4, Math.round(baseTunnelGap * scale))
+    const perRow = rows === 1 ? count : Math.ceil(count / rows)
+    const rowHeight = tunnelH + 4
+
+    for (let row = 0; row < rows; row++) {
+      const countInRow = row === rows - 1 ? count - row * perRow : perRow
+      const totalW = countInRow * tunnelW + (countInRow - 1) * tunnelGap
+      const rowBaseY = nodeData.isStacked
+        ? layoutParams.bodyY + layoutParams.bodyH - 28 - (rows - row) * rowHeight
+        : layoutParams.bodyY + layoutParams.bodyH - 10 - (rows - row) * rowHeight
+      const startX = layoutParams.panelX + (layoutParams.portPanelSvgW - totalW) / 2
+
+      for (let i = 0; i < countInRow; i++) {
+        const portNum = row * perRow + i + 1
+        const label = `TUNNEL-${portNum}`
+        const tx = startX + i * (tunnelW + tunnelGap) + tunnelW / 2
+        const isUsed = allEdges.some(e => {
+          const ed = e.data as EdgeData | undefined
+          return (e.source === id && ed?.sourcePort === label) ||
+                 (e.target === id && ed?.targetPort === label)
+        })
+        portHandleInfos.push({
+          portLabel: label,
+          svgCenterX: tx,
+          svgCenterY: rowBaseY,
+          isUsed,
+          position: Position.Bottom,
+        })
+      }
+    }
+  }
+
+  // V1.2.0: SDWAN cloud-type devices (no physical ports) get CP-LEFT/CP-RIGHT handles.
+  // SDWAN appliance-type devices (with ports_info like NetEngine AR8140) use port handles.
+  if (device.category_name === 'SDWAN' && !displayPorts) {
+    const cpY = svgH / 2
+    // Map SVG type to CP X positions matching visual CpDot circles
+    const svgType = (() => {
+      if (device.model === '互联网应用') return 'internetapp'
+      if (device.model === '国内互联网应用' || device.model === '国际互联网应用') return 'internetapp'
+      if (device.model.includes('互联网')) return 'internet'
+      if (device.model.includes('VPC') || device.model.includes('VNet') || device.model.includes('AWS') || device.model.includes('Azure') || device.model.includes('云')) return 'cloud'
+      if (device.model.includes('数据中心') || device.model.includes('灾备')) return 'datacenter'
+      return 'node'
+    })()
+    const cpLeftX = svgType === 'internet' ? Math.round(svgW * 0.21) : svgType === 'node' ? Math.round(svgW * 0.15) : Math.round(svgW * 0.11)
+    const cpRightX = svgType === 'internet' ? Math.round(svgW * 0.79) : svgType === 'node' ? Math.round(svgW * 0.85) : Math.round(svgW * 0.89)
+    const cpLeftUsed = allEdges.some(e => {
+      const ed = e.data as EdgeData | undefined
+      return (e.source === id && ed?.sourcePort === 'CP-LEFT') ||
+             (e.target === id && ed?.targetPort === 'CP-LEFT')
+    })
+    const cpRightUsed = allEdges.some(e => {
+      const ed = e.data as EdgeData | undefined
+      return (e.source === id && ed?.sourcePort === 'CP-RIGHT') ||
+             (e.target === id && ed?.targetPort === 'CP-RIGHT')
+    })
+    portHandleInfos.push(
+      {
+        portLabel: 'CP-LEFT',
+        svgCenterX: cpLeftX,
+        svgCenterY: cpY,
+        isUsed: cpLeftUsed,
+        position: Position.Left,
+      },
+      {
+        portLabel: 'CP-RIGHT',
+        svgCenterX: cpRightX,
+        svgCenterY: cpY,
+        isUsed: cpRightUsed,
+        position: Position.Right,
+      },
+    )
+  }
+
   // Build used-port set for SVG LED highlighting
   const usedPorts = new Set(portHandleInfos.filter(p => p.isUsed).map(p => p.portLabel))
 
@@ -175,7 +306,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
       left: svgRect.left - nodeRect.left,
       top: svgRect.top - nodeRect.top,
     })
-  }, [nodeWidth, nodeHeight])
+  }, [nodeWidth, nodeHeight, isDemoMode])
 
   // V0.8.4: After svgOffset updates and handles re-render, tell React Flow
   // to re-measure handle positions via getBoundingClientRect (getHandleBounds).
@@ -192,6 +323,15 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
     }
   }, [svgOffset, id, updateNodeInternals, handleFingerprint])
 
+  // V1.5.0: Load appImages for 互联网应用
+  useEffect(() => {
+    if (nodeData.appImages && nodeData.appImages.length > 0) {
+      setAppImages(nodeData.appImages)
+    } else {
+      setAppImages([])
+    }
+  }, [nodeData.appImages])
+
   // V0.9.3: Cleanup hover timer on unmount
   useEffect(() => {
     return () => {
@@ -204,12 +344,12 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
       ref={nodeOuterRef}
       className="relative rounded-lg shadow-sm border-2 transition-colors transition-shadow duration-150 select-none"
       style={{
-        width: nodeWidth,
-        height: nodeHeight,
-        minWidth: 160,
-        minHeight: 220,
+        width: (isDemoMode && !(rfWidth && rfWidth > 0)) ? undefined : nodeWidth,
+        height: isDemoMode ? undefined : nodeHeight,
+        minWidth: isDemoMode ? undefined : 160,
+        minHeight: isDemoMode ? undefined : 220,
         backgroundColor: 'var(--color-surface)',
-        borderColor: showBorder ? (selected ? 'var(--color-edge-selected)' : colors.border) : 'transparent',
+        borderColor: isDemoMode ? 'var(--color-border)' : (showBorder ? (selected ? 'var(--color-edge-selected)' : colors.border) : 'transparent'),
         boxShadow: selected
           ? 'var(--color-node-shadow-selected)'
           : isHovered
@@ -219,7 +359,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
       onMouseEnter={() => {
         setIsHovered(true)
         // V0.9.3: 3-second hover → business description tooltip
-        if (nodeData.businessNote) {
+        if (nodeData.businessNote && !isDemoMode) {
           hoverTimerRef.current = setTimeout(() => {
             setShowBusinessTooltip(true)
           }, 3000)
@@ -234,7 +374,8 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         }
       }}
     >
-      {/* Node resizer — allows manual resize */}
+      {/* Node resizer — hidden in demo mode */}
+      {!isDemoMode && (
       <NodeResizer
         isVisible={selected}
         minWidth={160}
@@ -252,8 +393,9 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
           zIndex: 5,
         }}
       />
+      )}
 
-      {/* Connection handles — V0.8.0: port-level handles on each port */}
+      {/* Connection handles — always visible in demo mode */}
       {svgOffset && (
         <ConnectionHandles
           portHandleInfos={portHandleInfos}
@@ -262,7 +404,8 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         />
       )}
 
-      {/* Header bar */}
+      {/* Header bar — hidden in demo mode */}
+      {!isDemoMode && (
       <div
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-t-md border-b"
         style={{ backgroundColor: nodeData.customColor || colors.light, borderColor: colors.border }}
@@ -285,13 +428,138 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
           />
         </div>
       </div>
+      )}
 
-      {/* Device illustration — always SVG, device image is shown in PropertyPanel only */}
-      <div ref={svgContainerRef} className="px-2 py-2 flex justify-center bg-surface">
-        <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} ports={portLayout.ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={nodeData.isStacked} />
+      {/* Device illustration — always SVG, V1.5.0: multi-image drag+resize on canvas */}
+      <div ref={svgContainerRef} className="px-2 py-2 flex justify-center bg-surface"
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement
+          const imgId = target.dataset.imageId
+          if (!imgId) return
+          if (target.classList.contains('internetapp-resize-handle')) {
+            e.stopPropagation()
+            e.preventDefault()
+            const item = (nodeData.appImages || []).find(img => img.id === imgId)
+            if (!item) return
+            imgDragRef.current = {
+              active: true, mode: 'resize', imageId: imgId,
+              startMouseX: e.clientX, startMouseY: e.clientY,
+              startOffsetX: item.offsetX, startOffsetY: item.offsetY,
+              startScale: item.scale,
+            }
+          } else if (target.tagName === 'image' && target.classList.contains('internetapp-image')) {
+            e.stopPropagation()
+            e.preventDefault()
+            const item = (nodeData.appImages || []).find(img => img.id === imgId)
+            if (!item) return
+            imgDragRef.current = {
+              active: true, mode: 'drag', imageId: imgId,
+              startMouseX: e.clientX, startMouseY: e.clientY,
+              startOffsetX: item.offsetX, startOffsetY: item.offsetY,
+              startScale: item.scale,
+            }
+          }
+        }}
+        onMouseMove={(e) => {
+          const d = imgDragRef.current
+          if (!d.active) return
+          const svgEl = svgContainerRef.current?.querySelector('svg')
+          if (!svgEl) return
+          const svgRect = svgEl.getBoundingClientRect()
+          const viewBox = svgEl.viewBox.baseVal
+          if (viewBox.width === 0 || viewBox.height === 0) return
+          const svgScale = viewBox.width / svgRect.width
+          const dx = (e.clientX - d.startMouseX) * svgScale
+          const dy = (e.clientY - d.startMouseY) * svgScale
+
+          // ViewBox layout constants for image area
+          const imgAreaX = Math.round(svgW * 0.10 + 1)
+          const imgAreaY = Math.round(svgH * 0.14 + 7)
+          const imgAreaW = Math.round(svgW * 0.80) - 2
+          const imgAreaH = Math.round(svgH * 0.72) - 14
+
+          const imgEl = svgEl.querySelector(`.internetapp-image[data-image-id="${d.imageId}"]`) as SVGImageElement | null
+          const handleEl = svgEl.querySelector(`.internetapp-resize-handle[data-image-id="${d.imageId}"]`) as SVGRectElement | null
+
+          if (d.mode === 'drag') {
+            const newX = d.startOffsetX + dx
+            const newY = d.startOffsetY + dy
+            // V1.5.0: Allow free movement across entire chassis; only prevent image from being lost
+            // ClipPath handles visual boundaries. Keep at least 10 viewBox px visible as grab handle.
+            const imgW = imgAreaW * d.startScale
+            const imgH = imgAreaH * d.startScale
+            const clampedX = Math.max(-(imgW - 10), Math.min(imgAreaW - 10, newX))
+            const clampedY = Math.max(-(imgH - 10), Math.min(imgAreaH - 10, newY))
+            if (imgEl) {
+              imgEl.setAttribute('x', String(imgAreaX + clampedX))
+              imgEl.setAttribute('y', String(imgAreaY + clampedY))
+            }
+            if (handleEl) {
+              handleEl.setAttribute('x', String(imgAreaX + clampedX + imgW - 3))
+              handleEl.setAttribute('y', String(imgAreaY + clampedY + imgH - 3))
+            }
+          } else if (d.mode === 'resize') {
+            const newScale = Math.max(0.15, Math.min(3.0, d.startScale + dx / imgAreaW))
+            if (imgEl) {
+              imgEl.setAttribute('width', String(imgAreaW * newScale))
+              imgEl.setAttribute('height', String(imgAreaH * newScale))
+            }
+            if (handleEl) {
+              handleEl.setAttribute('x', String(imgAreaX + d.startOffsetX + imgAreaW * newScale - 3))
+              handleEl.setAttribute('y', String(imgAreaY + d.startOffsetY + imgAreaH * newScale - 3))
+            }
+          }
+        }}
+        onMouseUp={(e) => {
+          const d = imgDragRef.current
+          if (!d.active) return
+          imgDragRef.current.active = false
+
+          const svgEl = svgContainerRef.current?.querySelector('svg')
+          if (!svgEl) return
+          const svgRect = svgEl.getBoundingClientRect()
+          const viewBox = svgEl.viewBox.baseVal
+          if (viewBox.width === 0 || viewBox.height === 0) return
+          const svgScale = viewBox.width / svgRect.width
+          const dx = (e.clientX - d.startMouseX) * svgScale
+          const dy = (e.clientY - d.startMouseY) * svgScale
+          const imgAreaW = Math.round(svgW * 0.80) - 2
+          const imgAreaH = Math.round(svgH * 0.72) - 14
+
+          const currentImages = nodeData.appImages || []
+          const updatedImages = currentImages.map(img => {
+            if (img.id !== d.imageId) return img
+            if (d.mode === 'drag') {
+              return {
+                ...img,
+                offsetX: Math.max(-(imgAreaW * img.scale - 10), Math.min(imgAreaW - 10, d.startOffsetX + dx)),
+                offsetY: Math.max(-(imgAreaH * img.scale - 10), Math.min(imgAreaH - 10, d.startOffsetY + dy)),
+              }
+            } else {
+              return {
+                ...img,
+                scale: Math.max(0.15, Math.min(3.0, d.startScale + dx / imgAreaW)),
+              }
+            }
+          })
+          setNodes((nds) => nds.map((n) => {
+            if (n.id === id) {
+              return { ...n, data: { ...n.data, appImages: updatedImages } }
+            }
+            return n
+          }))
+        }}
+        onMouseLeave={() => {
+          if (imgDragRef.current.active) {
+            imgDragRef.current.active = false
+          }
+        }}
+      >
+        <DeviceIllustration categoryName={device.category_name} accent={nodeData.customColor || colors.accent} portsInfo={displayPorts} ports={portLayout.ports} usedPorts={usedPorts} svgW={svgW} svgH={svgH} isStacked={nodeData.isStacked} hasTunnelPorts={nodeData.hasTunnelPorts} deviceModel={device.model} appImages={appImages} tunnelPortCount={nodeData.tunnelPortCount} />
       </div>
 
-      {/* Device info */}
+      {/* Device info — hidden in demo mode */}
+      {!isDemoMode && (
       <div className="px-3 pb-2.5 space-y-0.5">
         <InlineEdit
           label="设备名称"
@@ -327,9 +595,10 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
           </div>
         )}
       </div>
+      )}
 
-      {/* V0.9.3: Business description tooltip (3-second hover) */}
-      {showBusinessTooltip && nodeData.businessNote && (
+      {/* V0.9.3: Business description tooltip — hidden in demo mode */}
+      {!isDemoMode && showBusinessTooltip && nodeData.businessNote && (
         <div
           className="absolute z-50 w-56 p-3 bg-surface border border-border rounded-lg shadow-lg pointer-events-none"
           style={{

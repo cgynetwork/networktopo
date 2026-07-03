@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import type { DeviceNodeData } from '../nodes/DeviceNode'
-import type { EdgeData, PathStyle } from '../../types'
+import type { EdgeData, PathStyle, RackNodeData, RackDeviceNodeData, RackViewMode } from '../../types'
 import { getDeviceFromNode, getNodeData } from '../../types'
 import { getDefaultPortLabel, listAllPorts, composePortsInfo, parseModularPorts } from '../../utils/portParser'
+import { getRackNodeWidth, getRackHeight, getOccupiedSlots, U_PX_HEIGHT, RACK_HEADER_H } from '../../utils/rackUtils'
 
 interface PropertyPanelProps {
   selectedNode: Node | null
@@ -40,6 +41,8 @@ export default function PropertyPanel({
   const [cableLength, setCableLength] = useState('')
   const [sourcePort, setSourcePort] = useState('')
   const [targetPort, setTargetPort] = useState('')
+  const [sourceIp, setSourceIp] = useState('')
+  const [targetIp, setTargetIp] = useState('')
   const [strokeWidth, setStrokeWidth] = useState(3.5)
   const [strokeColor, setStrokeColor] = useState('')
   const [animSpeed, setAnimSpeed] = useState(2)
@@ -57,22 +60,68 @@ export default function PropertyPanel({
   const [customImage, setCustomImage] = useState('')
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
+  // V1.5.0: 互联网应用多图业务图片
+  const [appImages, setAppImages] = useState<Array<{ id: string; dataUrl: string; offsetX: number; offsetY: number; scale: number }>>([])
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [elbowOffset, setElbowOffset] = useState(50)
+  const [elbowHorizontalOffset, setElbowHorizontalOffset] = useState(0)
+  const [edgeDescription, setEdgeDescription] = useState('')
   // V0.9.0: Device stacking
   const [isStacked, setIsStacked] = useState(false)
+  // V1.3.0: Tunnel ports for SDWAN CPE
+  const [hasTunnelPorts, setHasTunnelPorts] = useState(false)
+  const [tunnelPortCount, setTunnelPortCount] = useState(2)
   // V0.9.1: Port numbering options
   const [portZeroBased, setPortZeroBased] = useState(false)
   const [portInterleaved, setPortInterleaved] = useState(false)
   // V0.9.3: Business description note
   const [businessNote, setBusinessNote] = useState('')
 
+  // ── Node type detection ──────────────────────────────────
+  const nodeType = selectedNode?.type as string | undefined
+  const isRackNode = nodeType === 'rackNode'
+  const isRackDeviceNode = nodeType === 'rackDeviceNode'
+
+  // Extract rack-specific data
+  const rackData = isRackNode
+    ? (selectedNode!.data as unknown as RackNodeData)
+    : undefined
+  const rackDeviceData = isRackDeviceNode
+    ? (selectedNode!.data as unknown as RackDeviceNodeData)
+    : undefined
+
+  // Compute rack statistics
+  const rackStats = useMemo(() => {
+    if (!isRackNode || !rackData || !nodes) return null
+    const childNodes = nodes.filter(n => n.parentId === selectedNode!.id)
+    const occupiedSlots = getOccupiedSlots(
+      childNodes.map(n => ({
+        uPosition: Math.round((n.position.y - RACK_HEADER_H) / U_PX_HEIGHT),
+        uHeight: (n.data as unknown as RackDeviceNodeData).uHeight || 1,
+      })),
+      rackData.accessories || [],
+    )
+    const totalU = rackData.uHeight
+    const occupied = new Array(totalU).fill(false)
+    for (const slot of occupiedSlots) {
+      for (let i = slot.uPosition; i < slot.uPosition + slot.uHeight && i < totalU; i++) {
+        occupied[i] = true
+      }
+    }
+    const usedU = occupied.filter(Boolean).length
+    const freeU = totalU - usedU
+    return { totalU, usedU, freeU, occupiedSlots }
+  }, [isRackNode, rackData, nodes, selectedNode])
+
   // Sync local state when selected node changes
   useEffect(() => {
+    // Skip sync for rack nodes (they don't have device-level fields)
+    if (isRackNode) return
     if (nodeData) {
       setCustomName(nodeData.customName || '')
       setIpAddress(nodeData.ipAddress || '')
       setDescription(nodeData.description || '')
-      setDbDescription(nodeData.device.description || '')
+      setDbDescription(nodeData.device?.description || '')
       setCustomCategory(nodeData.customCategory || '')
       setCustomVendor(nodeData.customVendor || '')
       setCustomDeviceModel(nodeData.customDeviceModel || '')
@@ -84,7 +133,7 @@ export default function PropertyPanel({
         setCustomPortsSFP28(nodeData.customPortsSFP28 ?? 0)
       } else {
         // Parse from legacy string or device template
-        const portsSource = nodeData.customPorts || nodeData.device.ports_info || ''
+        const portsSource = nodeData.customPorts || nodeData.device?.ports_info || ''
         const parsed = parseModularPorts(portsSource)
         setCustomPortsRJ45(parsed.rj45)
         setCustomPortsSFP(parsed.sfp)
@@ -93,11 +142,16 @@ export default function PropertyPanel({
       setCustomColor(nodeData.customColor || '')
       setCustomImage(nodeData.customImage || '')
       setIsStacked(nodeData.isStacked ?? false)
+    setHasTunnelPorts(nodeData.hasTunnelPorts ?? false)
+      setTunnelPortCount(nodeData.tunnelPortCount || 2)
       setPortZeroBased(nodeData.portZeroBased ?? false)
       setPortInterleaved(nodeData.portInterleaved ?? false)
       setBusinessNote(nodeData.businessNote || '')
+      // V1.5.0: 互联网应用多图业务图片
+      setAppImages(nodeData.appImages || [])
+      setSelectedImageId(null)
     }
-  }, [selectedNode?.id, nodeData]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedNode?.id, nodeData, isRackNode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync local state when selected edge changes
   useEffect(() => {
@@ -110,12 +164,16 @@ export default function PropertyPanel({
       setCableLength(edgeData.cableLength || '')
       setSourcePort(edgeData.sourcePort || '')
       setTargetPort(edgeData.targetPort || '')
+      setSourceIp(edgeData.sourceIp || '')
+      setTargetIp(edgeData.targetIp || '')
       setStrokeWidth(edgeData.strokeWidth ?? 3.5)
       setStrokeColor(edgeData.strokeColor || '')
       setAnimSpeed(edgeData.animSpeed ?? 2)
       setParticleSize(edgeData.particleSize ?? 4.5)
       setEffectColor(edgeData.effectColor || '#2196F3')
       setElbowOffset(edgeData.elbowOffset ?? 50)
+      setElbowHorizontalOffset(edgeData.elbowHorizontalOffset ?? 0)
+      setEdgeDescription(edgeData.edgeDescription || '')
     }
   }, [selectedEdge?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -156,6 +214,40 @@ export default function PropertyPanel({
     setImagePreviewUrl(null)
     onUpdateNodeData?.(selectedNode.id, { customImage: undefined })
   }, [selectedNode, onUpdateNodeData])
+
+  // V1.5.0: 互联网应用多图业务图片 — 添加/移除/缩放
+  const handleAddAppImage = useCallback(async () => {
+    if (!selectedNode) return
+    const result = await window.electronAPI.pickAppImage()
+    if (result.success && result.dataUrl) {
+      const newItem = {
+        id: crypto.randomUUID(),
+        dataUrl: result.dataUrl,
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+      }
+      const updated = [...appImages, newItem]
+      setAppImages(updated)
+      setSelectedImageId(newItem.id)
+      onUpdateNodeData?.(selectedNode.id, { appImages: updated })
+    }
+  }, [selectedNode, appImages, onUpdateNodeData])
+
+  const handleRemoveAppImage = useCallback((imgId: string) => {
+    if (!selectedNode) return
+    const updated = appImages.filter(img => img.id !== imgId)
+    setAppImages(updated)
+    if (selectedImageId === imgId) setSelectedImageId(null)
+    onUpdateNodeData?.(selectedNode.id, { appImages: updated.length > 0 ? updated : undefined })
+  }, [selectedNode, appImages, selectedImageId, onUpdateNodeData])
+
+  const handleUpdateAppImageScale = useCallback((imgId: string, scale: number) => {
+    if (!selectedNode) return
+    const updated = appImages.map(img => img.id === imgId ? { ...img, scale } : img)
+    setAppImages(updated)
+    onUpdateNodeData?.(selectedNode.id, { appImages: updated })
+  }, [selectedNode, appImages, onUpdateNodeData])
 
   const handleNameChange = useCallback(() => {
     if (selectedNode && onUpdateNodeData) {
@@ -287,7 +379,7 @@ export default function PropertyPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="text-sm font-semibold text-text-primary">
-          {selectedNode ? '设备属性' : '连线属性'}
+          {selectedNode ? (isRackNode ? '机柜属性' : '设备属性') : '连线属性'}
         </h3>
         <button
           onClick={onClose}
@@ -300,7 +392,290 @@ export default function PropertyPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {selectedNode && nodeData && (
+        {/* ── Rack Node Properties ────────────────────────── */}
+        {selectedNode && isRackNode && rackData && (
+          <div className="space-y-4">
+            {/* Rack header info */}
+            <div className="flex items-center gap-2 p-2 bg-hover-bg rounded">
+              <span className="text-lg">🗄️</span>
+              <div>
+                <div className="text-sm font-semibold text-text-primary">{rackData.label}</div>
+                <div className="text-xs text-text-secondary">{rackData.uHeight}U 网络机柜</div>
+              </div>
+            </div>
+
+            {/* Rack name */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">机柜名称</label>
+              <input
+                type="text"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                value={rackData.label}
+                onChange={(e) => {
+                  onUpdateNodeData?.(selectedNode.id, { label: e.target.value })
+                }}
+                placeholder="机柜名称"
+              />
+            </div>
+
+            {/* U statistics */}
+            {rackStats && (
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">U 位使用情况</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-3 bg-hover-bg rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-select-border rounded-full transition-all duration-300"
+                        style={{ width: `${rackStats.totalU > 0 ? (rackStats.usedU / rackStats.totalU) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <span className="text-2xs text-text-secondary w-16 text-right">
+                      {rackStats.usedU}/{rackStats.totalU}U
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-2xs text-text-secondary">
+                    <span>已用: {rackStats.usedU}U</span>
+                    <span>空闲: {rackStats.freeU}U</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* V1.1.1: Empty rack hint — show when no devices in rack */}
+            {rackStats && rackStats.usedU === 0 && (
+              <div className="p-3 bg-select-bg/30 border border-dashed border-select-border rounded text-center space-y-2">
+                <div className="text-2xl">📥</div>
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  从左侧设备列表拖拽设备至机柜内
+                </p>
+                <p className="text-2xs text-text-secondary">
+                  或右键单击机柜 → 选择「添加设备到机柜」
+                </p>
+              </div>
+            )}
+
+            {/* View mode toggle */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                👁️ 视图模式
+              </label>
+              <div className="flex gap-2">
+                <button
+                  className={`flex-1 h-8 text-xs rounded border transition-colors ${
+                    rackData.viewMode === 'front'
+                      ? 'bg-select-bg border-select-border text-select-border font-semibold'
+                      : 'border-border bg-surface hover:bg-hover-bg'
+                  }`}
+                  onClick={() => onUpdateNodeData?.(selectedNode.id, { viewMode: 'front' as RackViewMode })}
+                >
+                  🔲 机柜正面
+                </button>
+                <button
+                  className={`flex-1 h-8 text-xs rounded border transition-colors ${
+                    rackData.viewMode === 'back'
+                      ? 'bg-select-bg border-select-border text-select-border font-semibold'
+                      : 'border-border bg-surface hover:bg-hover-bg'
+                  }`}
+                  onClick={() => onUpdateNodeData?.(selectedNode.id, { viewMode: 'back' as RackViewMode })}
+                >
+                  🔌 机柜背面
+                </button>
+              </div>
+              <p className="text-2xs text-text-secondary mt-1.5">
+                双击机柜也可切换视图模式
+              </p>
+            </div>
+
+            {/* Rack info */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">📐 机柜信息</label>
+              <div className="space-y-1 text-xs text-text-secondary">
+                <div className="flex justify-between">
+                  <span>总高度</span>
+                  <span className="font-mono">{rackData.uHeight}U ({rackData.uHeight * U_PX_HEIGHT}px)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>正面宽度</span>
+                  <span className="font-mono">{getRackNodeWidth('front')}px</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>背面宽度</span>
+                  <span className="font-mono">{getRackNodeWidth('back')}px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Rack Device Node Properties ──────────────────── */}
+        {selectedNode && isRackDeviceNode && rackDeviceData && (
+          <div className="space-y-4">
+            {/* Vendor info */}
+            <div className="flex items-center gap-2 p-2 bg-hover-bg rounded">
+              <span className="text-sm font-semibold text-text-primary">
+                {rackDeviceData.device.vendor_name}
+              </span>
+              <span className="text-xs text-text-secondary">
+                {rackDeviceData.device.category_name}
+              </span>
+            </div>
+
+            {/* U Position + U Height summary */}
+            <div className="flex gap-2">
+              <div className="flex-1 p-2 bg-hover-bg rounded text-center">
+                <div className="text-2xs text-text-secondary">所在 U 位</div>
+                <div className="text-sm font-bold text-select-border font-mono">
+                  U{rackDeviceData.uPosition ?? '?'}
+                </div>
+              </div>
+              <div className="flex-1 p-2 bg-hover-bg rounded text-center">
+                <div className="text-2xs text-text-secondary">占用高度</div>
+                <div className="text-sm font-bold text-text-primary font-mono">
+                  {rackDeviceData.uHeight || 1}U
+                </div>
+              </div>
+            </div>
+
+            {/* U Height adjustment */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">U 位高度</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="1"
+                  max="6"
+                  step="1"
+                  value={rackDeviceData.uHeight || 1}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10)
+                    onUpdateNodeData?.(selectedNode.id, { uHeight: val })
+                  }}
+                  className="flex-1 h-1.5 accent-select-border cursor-pointer"
+                />
+                <span className="text-xs font-mono text-text-primary w-6 text-right">
+                  {rackDeviceData.uHeight || 1}U
+                </span>
+              </div>
+            </div>
+
+            {/* Power supply count (V1.1.2) */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🔌 电源模块数量
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-primary text-sm"
+                  onClick={() => {
+                    const current = rackDeviceData.powerSupplyCount ?? 1
+                    const next = Math.max(0, current - 1)
+                    onUpdateNodeData?.(selectedNode.id, { powerSupplyCount: next })
+                  }}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  max="4"
+                  className="flex-1 h-8 px-2 text-xs text-center rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                  value={rackDeviceData.powerSupplyCount ?? 1}
+                  onChange={(e) => {
+                    const val = Math.max(0, Math.min(4, parseInt(e.target.value) || 0))
+                    onUpdateNodeData?.(selectedNode.id, { powerSupplyCount: val })
+                  }}
+                />
+                <button
+                  className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-primary text-sm"
+                  onClick={() => {
+                    const current = rackDeviceData.powerSupplyCount ?? 1
+                    const next = Math.min(4, current + 1)
+                    onUpdateNodeData?.(selectedNode.id, { powerSupplyCount: next })
+                  }}
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-2xs text-text-secondary mt-1.5">
+                设备背面的电源模块数量（0-4 个）
+              </p>
+            </div>
+
+            {/* Device color */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">节点颜色</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={customColor || '#6B7280'}
+                  onChange={(e) => {
+                    setCustomColor(e.target.value)
+                    onUpdateNodeData?.(selectedNode.id, { customColor: e.target.value })
+                  }}
+                  className="w-8 h-8 rounded border border-border cursor-pointer p-0.5"
+                />
+                <span className="text-2xs text-text-secondary">
+                  {customColor ? customColor : '默认（按设备类型）'}
+                </span>
+                {customColor && (
+                  <button
+                    className="text-2xs text-danger hover:opacity-70 transition-colors ml-auto"
+                    onClick={() => {
+                      setCustomColor('')
+                      onUpdateNodeData?.(selectedNode.id, { customColor: undefined })
+                    }}
+                  >
+                    重置
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Device name */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">设备名称</label>
+              <input
+                type="text"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                onBlur={handleNameChange}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleNameChange() }}
+                placeholder={rackDeviceData.device.model}
+              />
+            </div>
+
+            {/* Device model */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">设备型号</label>
+              <input
+                type="text"
+                className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                value={customDeviceModel}
+                onChange={(e) => setCustomDeviceModel(e.target.value)}
+                onBlur={handleCustomDeviceModelChange}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCustomDeviceModelChange() }}
+                placeholder={`${rackDeviceData.device.vendor_name} ${rackDeviceData.device.model}`}
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">描述</label>
+              <textarea
+                className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={handleDescChange}
+                placeholder="设备描述..."
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Standard Device Node Properties ──────────────── */}
+        {selectedNode && !isRackNode && !isRackDeviceNode && nodeData && (
           <div className="space-y-4">
             {/* Vendor info */}
             <div className="flex items-center gap-2 p-2 bg-hover-bg rounded">
@@ -490,6 +865,80 @@ export default function PropertyPanel({
               )}
             </div>
 
+            {/* ── V1.3.0: Tunnel Ports Toggle (SDWAN CPE only) ── */}
+            {nodeData?.device?.category_name === 'SDWAN' && nodeData?.device?.ports_info && (
+              <div className="border-t border-border pt-3">
+                <label className="block text-xs font-semibold text-text-primary mb-2">
+                  🔷 隧道端口
+                </label>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-secondary">
+                    启用 SDWAN 隧道互联
+                  </span>
+                  <button
+                    type="button"
+                    className={`w-10 h-5 rounded-full transition-colors relative overflow-hidden ${
+                      hasTunnelPorts
+                        ? 'bg-select-border'
+                        : ''
+                    }`}
+                    style={hasTunnelPorts ? {} : { backgroundColor: 'var(--color-device-body-stroke)' }}
+                    onClick={() => {
+                      const newVal = !hasTunnelPorts
+                      setHasTunnelPorts(newVal)
+                      onUpdateNodeData?.(selectedNode!.id, { hasTunnelPorts: newVal || undefined })
+                    }}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        hasTunnelPorts ? 'translate-x-[22px]' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {hasTunnelPorts && (
+                  <div className="mt-2 space-y-2">
+                    <div>
+                      <label className="block text-2xs text-text-secondary mb-1">隧道端口数量</label>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-primary text-xs"
+                          onClick={() => {
+                            const next = Math.max(1, tunnelPortCount - 1)
+                            setTunnelPortCount(next)
+                            onUpdateNodeData?.(selectedNode!.id, { tunnelPortCount: next })
+                          }}
+                        >−</button>
+                        <input
+                          type="number"
+                          min="1"
+                          max="8"
+                          className="flex-1 h-7 px-2 text-xs text-center rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                          value={tunnelPortCount}
+                          onChange={(e) => {
+                            const val = Math.max(1, Math.min(8, parseInt(e.target.value) || 2))
+                            setTunnelPortCount(val)
+                            onUpdateNodeData?.(selectedNode!.id, { tunnelPortCount: val })
+                          }}
+                        />
+                        <button
+                          className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-primary text-xs"
+                          onClick={() => {
+                            const next = Math.min(8, tunnelPortCount + 1)
+                            setTunnelPortCount(next)
+                            onUpdateNodeData?.(selectedNode!.id, { tunnelPortCount: next })
+                          }}
+                        >+</button>
+                      </div>
+                    </div>
+                    <p className="text-2xs text-text-secondary">
+                      TUNNEL-1 ~ TUNNEL-{tunnelPortCount} 端口已显示在设备底部，可连接至 SDWAN Node 形成专用互联
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── V0.9.1: Port numbering options ── */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
@@ -618,6 +1067,109 @@ export default function PropertyPanel({
               <p className="text-2xs text-text-secondary mt-1.5">支持 PNG / JPG / WebP 格式</p>
             </div>
 
+            {/* V1.5.0: 互联网应用多图业务图片 — only for 互联网应用 device */}
+            {nodeData?.device?.model === '互联网应用' && (
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🖼️ 业务图片
+                {appImages.length > 0 && (
+                  <span className="ml-1 text-2xs text-text-secondary font-normal">
+                    (已上传 {appImages.length} 张)
+                  </span>
+                )}
+              </label>
+
+              {/* Thumbnail grid */}
+              {appImages.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {appImages.map((img, idx) => (
+                    <div
+                      key={img.id}
+                      className={`relative w-[50px] h-[50px] rounded border-2 cursor-pointer overflow-hidden flex-shrink-0 ${
+                        selectedImageId === img.id
+                          ? 'border-select-border'
+                          : 'border-border hover:border-select-border/50'
+                      }`}
+                      style={{ backgroundColor: 'var(--color-device-image-bg)' }}
+                      onClick={() => setSelectedImageId(selectedImageId === img.id ? null : img.id)}
+                      title={`图片 ${idx + 1}`}
+                    >
+                      <img
+                        src={img.dataUrl}
+                        alt={`业务图片 ${idx + 1}`}
+                        className="w-full h-full object-contain"
+                      />
+                      {/* Remove button */}
+                      <button
+                        className="absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-bl text-2xs leading-none text-white bg-danger/80 hover:bg-danger transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemoveAppImage(img.id)
+                        }}
+                        title="移除此图片"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add image button */}
+              <button
+                className="w-full h-7 text-xs rounded border border-dashed border-select-border/50 text-select-border hover:bg-select-bg transition-colors mb-2"
+                onClick={handleAddAppImage}
+              >
+                + 添加图片
+              </button>
+
+              {/* Selected image scale control */}
+              {selectedImageId && (() => {
+                const selectedImg = appImages.find(img => img.id === selectedImageId)
+                if (!selectedImg) return null
+                const imgIdx = appImages.findIndex(img => img.id === selectedImageId) + 1
+                return (
+                  <div className="p-2 bg-hover-bg rounded space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text-secondary">图片 {imgIdx}</span>
+                      <button
+                        className="text-2xs text-danger hover:opacity-70 transition-colors"
+                        onClick={() => handleRemoveAppImage(selectedImageId)}
+                      >
+                        移除
+                      </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-2xs text-text-secondary">缩放</label>
+                        <span className="text-2xs text-select-border font-mono">
+                          {Math.round(selectedImg.scale * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="15"
+                        max="300"
+                        step="5"
+                        value={Math.round(selectedImg.scale * 100)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) / 100
+                          handleUpdateAppImageScale(selectedImageId, val)
+                        }}
+                        className="w-full h-1.5 accent-select-border cursor-pointer"
+                      />
+                      <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
+                        <span>15%</span><span>300%</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              <p className="text-2xs text-text-secondary mt-1.5">支持 SVG / PNG / BMP / JPG / WebP，每张最大 512KB。图片可在画布上自由拖拽与缩放</p>
+            </div>
+            )}
+
             {/* IP Address */}
             <div>
               <label className="block text-xs text-text-secondary mb-1">IP 地址</label>
@@ -700,6 +1252,7 @@ export default function PropertyPanel({
                 <option value="ethernet">网线 (实线)</option>
                 <option value="fiber">光纤 (虚线)</option>
                 <option value="stack">堆叠线缆 (粗实线)</option>
+                <option value="tunnel">隧道线缆 (SDWAN)</option>
                 <option value="wireless">无线 (信号波)</option>
               </select>
             </div>
@@ -773,6 +1326,45 @@ export default function PropertyPanel({
                     }}
                   >
                     重置为默认值
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 肘形左右偏移量 — only visible when pathStyle is step */}
+            {pathStyle === 'step' && (
+              <div className="mb-3 p-2 bg-select-bg/50 rounded border border-select-border/30">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-text-secondary">肘形左右</label>
+                  <span className="text-2xs text-select-border bg-select-bg px-1.5 py-0.5 rounded font-mono">
+                    {elbowHorizontalOffset > 0 ? `→ ${elbowHorizontalOffset}px` : elbowHorizontalOffset < 0 ? `← ${Math.abs(elbowHorizontalOffset)}px` : '居中'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-200"
+                  max="200"
+                  step="5"
+                  value={elbowHorizontalOffset}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10)
+                    setElbowHorizontalOffset(val)
+                    onUpdateEdgeData?.(selectedEdge.id, { elbowHorizontalOffset: val === 0 ? undefined : val })
+                  }}
+                  className="w-full h-1.5 accent-select-border cursor-pointer"
+                />
+                <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
+                  <span>← 左(-200px)</span><span>右(200px) →</span>
+                </div>
+                {elbowHorizontalOffset !== 0 && (
+                  <button
+                    className="text-2xs text-select-border hover:opacity-80 transition-colors mt-1"
+                    onClick={() => {
+                      setElbowHorizontalOffset(0)
+                      onUpdateEdgeData?.(selectedEdge.id, { elbowHorizontalOffset: undefined })
+                    }}
+                  >
+                    重置为居中
                   </button>
                 )}
               </div>
@@ -1095,6 +1687,42 @@ export default function PropertyPanel({
                 )
               })()}
             </div>
+            {/* ── V1.5.1: 接口 IP ── */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                🌐 接口 IP
+              </label>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-2xs text-text-secondary mb-1">本端 IP</label>
+                  <input
+                    type="text"
+                    className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                    value={sourceIp}
+                    onChange={(e) => {
+                      setSourceIp(e.target.value)
+                      onUpdateEdgeData?.(selectedEdge.id, { sourceIp: e.target.value || undefined })
+                    }}
+                    placeholder="如 192.168.1.1/24"
+                  />
+                </div>
+                <div>
+                  <label className="block text-2xs text-text-secondary mb-1">对端 IP</label>
+                  <input
+                    type="text"
+                    className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
+                    value={targetIp}
+                    onChange={(e) => {
+                      setTargetIp(e.target.value)
+                      onUpdateEdgeData?.(selectedEdge.id, { targetIp: e.target.value || undefined })
+                    }}
+                    placeholder="如 192.168.1.2/24"
+                  />
+                </div>
+              </div>
+              <p className="text-2xs text-text-secondary mt-1.5">填写后将在画布上显示可拖拽的 IP 标签</p>
+            </div>
+
             <div>
               <label className="block text-xs text-text-secondary mb-1">带宽</label>
               <input
@@ -1120,6 +1748,25 @@ export default function PropertyPanel({
                 }}
                 placeholder="如 0.3M"
               />
+            </div>
+
+            {/* ── 线缆业务说明 ── */}
+            <div className="border-t border-border pt-3">
+              <label className="block text-xs font-semibold text-text-primary mb-2">
+                📝 线缆业务说明
+              </label>
+              <textarea
+                className="w-full h-24 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
+                value={edgeDescription}
+                onChange={(e) => setEdgeDescription(e.target.value)}
+                onBlur={() => {
+                  onUpdateEdgeData?.(selectedEdge.id, { edgeDescription: edgeDescription || undefined })
+                }}
+                placeholder="此线缆承载的业务流量说明：包括业务名称、流量方向、带宽需求等..."
+              />
+              <p className="text-2xs text-text-secondary mt-1.5">
+                鼠标悬浮于线缆上超过 1.5 秒时将显示此说明内容
+              </p>
             </div>
           </div>
         )}

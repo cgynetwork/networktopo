@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Device image management
   pickDeviceImage: () => ipcRenderer.invoke('file:pickDeviceImage'),
+  // V1.4.0: Pick app business image (returns base64 data URL directly)
+  pickAppImage: () => ipcRenderer.invoke('file:pickAppImage'),
   readDeviceImage: (basename: string) => ipcRenderer.invoke('file:readDeviceImage', basename),
   deleteDeviceImage: (basename: string) => ipcRenderer.invoke('file:deleteDeviceImage', basename),
   updateDeviceImage: (id: number, imagePath: string | null) => ipcRenderer.invoke('db:updateDeviceImage', id, imagePath),

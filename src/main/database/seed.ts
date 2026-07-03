@@ -35,6 +35,91 @@ export function seedData(db: Database.Database): void {
       }
       console.log('V0.9.3 migration: added PC/Laptop categories and devices')
     }
+    // V1.1.0: Incremental migration — add rack equipment categories
+    const rackCatCount = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name = '配线架'").get() as { cnt: number }
+    if (rackCatCount.cnt === 0) {
+      const migrateCat2 = db.prepare('INSERT OR IGNORE INTO categories (name, icon, sort_order) VALUES (?, ?, ?)')
+      migrateCat2.run('配线架', 'patch-panel', 8)
+      migrateCat2.run('超融合', 'hyper-converged', 9)
+      migrateCat2.run('存储', 'storage', 10)
+      migrateCat2.run('运营商光猫', 'ont', 11)
+      const migrateDevice2 = db.prepare('INSERT OR IGNORE INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const rackDevices: Array<[number, number, string, string, string]> = [
+        // 配线架 (category_id=8)
+        [8, 1, '通用24口配线架', '标准1U 24口超五类网络配线架', '24×GE'],
+        [8, 1, '通用48口配线架', '标准2U 48口超五类网络配线架', '48×GE'],
+        [8, 2, '通用24口光纤配线架', '标准1U 24口LC双工光纤配线架', '24×SFP'],
+        [8, 2, '通用48口光纤配线架', '标准2U 48口LC双工光纤配线架', '48×SFP'],
+        // 超融合 (category_id=9)
+        [9, 1, 'UIS 3000 G5', 'H3C 2U 超融合一体机，双路Xeon+3节点', '4×25GE+8×GE'],
+        [9, 2, 'FusionCube 500', 'Huawei 2U 超融合一体机，双路Xeon+2节点', '2×25GE+4×GE'],
+        [9, 1, '通用超融合节点', '通用2U 超融合节点，双路Xeon', '2×25GE+4×GE'],
+        // 存储 (category_id=10)
+        [10, 1, 'UniStor CF22000', 'H3C 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+        [10, 2, 'OceanStor 5310', 'Huawei 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+        [10, 1, '通用存储阵列', '通用2U 存储阵列，12×3.5"盘位', '2×25GE+4×GE'],
+        [10, 1, '通用全闪存储', '通用2U 全闪存储阵列，24×2.5" NVMe', '4×25GE+8×GE'],
+        // 运营商光猫 (category_id=11)
+        [11, 2, 'OptiXstar P812E', 'Huawei XGSPON ONT，1×10GE+4×GE', '1×10GE+4×GE'],
+        [11, 1, '通用GPON光猫', '通用1U GPON ONT终端，1×GE+1×POTS', '1×GE'],
+        [11, 1, '通用XGSPON光猫', '通用1U XGSPON ONT终端，1×10GE+4×GE', '1×10GE+4×GE'],
+      ]
+      for (const d of rackDevices) {
+        migrateDevice2.run(...d)
+      }
+      console.log('V1.1.0 migration: added rack equipment categories and devices')
+    }
+    // V1.2.0: Merge 5 separate SDWAN categories into single "SDWAN" category
+    const sdwanExists = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name = 'SDWAN'").get() as { cnt: number }
+    if (sdwanExists.cnt === 0) {
+      // Clean up old V1.2.0 categories if present
+      const oldCount = db.prepare("SELECT COUNT(*) as cnt FROM categories WHERE name IN ('SDWAN节点','互联网网络','公有云','数据中心','SDWAN设备')").get() as { cnt: number }
+      if (oldCount.cnt > 0) {
+        db.prepare("DELETE FROM categories WHERE name IN ('SDWAN节点','互联网网络','公有云','数据中心','SDWAN设备')").run()
+        db.prepare('UPDATE categories SET sort_order = sort_order - 5 WHERE sort_order > 5').run()
+      }
+      // Shift existing categories down by 1 for the new SDWAN category
+      db.prepare('UPDATE categories SET sort_order = sort_order + 1').run()
+      db.prepare('INSERT INTO categories (name, icon, sort_order) VALUES (?, ?, ?)').run('SDWAN', 'sdwan', 1)
+      const sdwanCat = db.prepare("SELECT id FROM categories WHERE name = 'SDWAN'").get() as { id: number }
+      const migrateDevice3 = db.prepare('INSERT INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const sdwanDevices: Array<[number, number, string, string, string]> = [
+        [sdwanCat.id, 1, 'SDWAN Hub Node', 'H3C SDWAN 中心控制节点，策略编排与路由管理', ''],
+        [sdwanCat.id, 1, '互联网接入点', 'ISP 互联网接入点，企业出口上联', ''],
+        [sdwanCat.id, 1, '阿里云 VPC', '阿里云虚拟私有云，高速弹性网络', ''],
+        [sdwanCat.id, 1, '主数据中心', '核心业务数据中心，双路供电+容灾', ''],
+        [sdwanCat.id, 2, 'NetEngine AR8140', 'Huawei SDWAN CPE 网关，4×GE+2×SFP', '4×GE+2×SFP'],
+      ]
+      for (const d of sdwanDevices) {
+        migrateDevice3.run(...d)
+      }
+      console.log('V1.2.0 migration: unified SDWAN category with 5 devices')
+    }
+
+    // V1.3.0: add domestic/international app devices to SDWAN
+    const domesticExists = db.prepare("SELECT COUNT(*) as cnt FROM device_models WHERE model IN ('国内互联网应用', '互联网应用')").get() as { cnt: number }
+    if (domesticExists.cnt === 0) {
+      const sdwanCat = db.prepare("SELECT id FROM categories WHERE name = 'SDWAN'").get() as { id: number }
+      const migrateDevice4 = db.prepare('INSERT OR IGNORE INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      const newSdwanDevices = [
+        [sdwanCat.id, 1, '国内互联网应用', '微信、百度等国内主流互联网应用接入点', ''],
+        [sdwanCat.id, 1, '国际互联网应用', 'OpenAI、Salesforce等国际SaaS应用接入点', ''],
+      ]
+      for (const d of newSdwanDevices) {
+        migrateDevice4.run(...d)
+      }
+      console.log('V1.3.0 migration: added domestic/international app devices to SDWAN')
+    }
+
+    // V1.4.0: merge domestic/international app devices into single unified 互联网应用
+    const mergedAppExists = db.prepare("SELECT COUNT(*) as cnt FROM device_models WHERE model = '互联网应用'").get() as { cnt: number }
+    if (mergedAppExists.cnt === 0) {
+      const sdwanCat = db.prepare("SELECT id FROM categories WHERE name = 'SDWAN'").get() as { id: number }
+      db.prepare("DELETE FROM device_models WHERE model IN ('国内互联网应用', '国际互联网应用')").run()
+      const migrateDevice5 = db.prepare('INSERT INTO device_models (category_id, vendor_id, model, description, ports_info) VALUES (?, ?, ?, ?, ?)')
+      migrateDevice5.run(sdwanCat.id, 1, '互联网应用', '国内外主流互联网应用接入点，支持上传自定义业务图片', '')
+      console.log('V1.4.0 migration: merged domestic/international app devices into unified 互联网应用')
+    }
     return
   }
 
@@ -43,13 +128,18 @@ export function seedData(db: Database.Database): void {
     'INSERT INTO categories (name, icon, sort_order) VALUES (?, ?, ?)'
   )
   const categories = [
-    ['防火墙', 'firewall', 1],
-    ['交换机', 'switch', 2],
-    ['无线控制器', 'ac', 3],
-    ['无线接入点', 'ap', 4],
-    ['服务器', 'server', 5],
-    ['终端-PC', 'pc', 6],           // V0.9.3
-    ['终端-笔记本', 'laptop', 7],   // V0.9.3
+    ['防火墙', 'firewall', 6],
+    ['交换机', 'switch', 7],
+    ['无线控制器', 'ac', 8],
+    ['无线接入点', 'ap', 9],
+    ['服务器', 'server', 10],
+    ['终端-PC', 'pc', 11],           // V0.9.3
+    ['终端-笔记本', 'laptop', 12],   // V0.9.3
+    ['配线架', 'patch-panel', 13],   // V1.1.0
+    ['超融合', 'hyper-converged', 14],   // V1.1.0
+    ['存储', 'storage', 15],        // V1.1.0
+    ['运营商光猫', 'ont', 16],      // V1.1.0
+    ['SDWAN', 'sdwan', 1],                     // V1.2.0
   ]
   for (const cat of categories) {
     insertCategory.run(...cat)
@@ -136,6 +226,34 @@ export function seedData(db: Database.Database): void {
     // V0.9.3: 通用终端（无厂商）
     [6, 1, '通用PC终端', '通用桌面PC终端，固定1无线+1网络', '1×WLAN+1×GE'],
     [7, 1, '通用笔记本终端', '通用笔记本终端，固定1无线+1网络', '1×WLAN+1×GE'],
+
+    // V1.1.0: 配线架 (category_id=8)
+    [8, 1, '通用24口配线架', '标准1U 24口超五类网络配线架', '24×GE'],
+    [8, 1, '通用48口配线架', '标准2U 48口超五类网络配线架', '48×GE'],
+    [8, 2, '通用24口光纤配线架', '标准1U 24口LC双工光纤配线架', '24×SFP'],
+    [8, 2, '通用48口光纤配线架', '标准2U 48口LC双工光纤配线架', '48×SFP'],
+    // V1.1.0: 超融合 (category_id=9)
+    [9, 1, 'UIS 3000 G5', 'H3C 2U 超融合一体机，双路Xeon+3节点', '4×25GE+8×GE'],
+    [9, 2, 'FusionCube 500', 'Huawei 2U 超融合一体机，双路Xeon+2节点', '2×25GE+4×GE'],
+    [9, 1, '通用超融合节点', '通用2U 超融合节点，双路Xeon', '2×25GE+4×GE'],
+    // V1.1.0: 存储 (category_id=10)
+    [10, 1, 'UniStor CF22000', 'H3C 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+    [10, 2, 'OceanStor 5310', 'Huawei 2U 混合存储阵列，12×3.5"盘位', '4×25GE+8×GE'],
+    [10, 1, '通用存储阵列', '通用2U 存储阵列，12×3.5"盘位', '2×25GE+4×GE'],
+    [10, 1, '通用全闪存储', '通用2U 全闪存储阵列，24×2.5" NVMe', '4×25GE+8×GE'],
+    // V1.1.0: 运营商光猫 (category_id=11)
+    [11, 2, 'OptiXstar P812E', 'Huawei XGSPON ONT，1×10GE+4×GE', '1×10GE+4×GE'],
+    [11, 1, '通用GPON光猫', '通用1U GPON ONT终端，1×GE+1×POTS', '1×GE'],
+    [11, 1, '通用XGSPON光猫', '通用1U XGSPON ONT终端，1×10GE+4×GE', '1×10GE+4×GE'],
+
+    // V1.2.0: SDWAN (category_id=12) — one device per type
+    [12, 1, 'SDWAN Hub Node', 'H3C SDWAN 中心控制节点，策略编排与路由管理', ''],
+    [12, 1, '互联网接入点', 'ISP 互联网接入点，企业出口上联', ''],
+    [12, 1, '阿里云 VPC', '阿里云虚拟私有云，高速弹性网络', ''],
+    [12, 1, '主数据中心', '核心业务数据中心，双路供电+容灾', ''],
+    [12, 2, 'NetEngine AR8140', 'Huawei SDWAN CPE 网关，4×GE+2×SFP', '4×GE+2×SFP'],
+    // V1.4.0: SDWAN internet application device (unified domestic+international)
+    [12, 1, '互联网应用', '国内外主流互联网应用接入点，支持上传自定义业务图片', ''],
   ]
 
   const insertDevice = db.prepare(

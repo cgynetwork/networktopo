@@ -65,6 +65,8 @@ export interface ElectronAPI {
 
   // Device image management
   pickDeviceImage: () => Promise<{ success: boolean; originalName?: string; storedPath?: string; canceled?: boolean; error?: string }>
+  // V1.4.0: Pick app business image (returns base64 data URL directly)
+  pickAppImage: () => Promise<{ success: boolean; dataUrl?: string; fileName?: string; canceled?: boolean; error?: string }>
   readDeviceImage: (basename: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
   deleteDeviceImage: (basename: string) => Promise<{ success: boolean; error?: string }>
   updateDeviceImage: (id: number, imagePath: string | null) => Promise<{ success: boolean; error?: string }>
