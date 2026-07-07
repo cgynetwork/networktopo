@@ -226,7 +226,7 @@ export default function Toolbar({
           {isDirty && <span className="text-amber-500 mr-0.5">•</span>}
           Topo
         </span>
-        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.1.0</span>
+        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.5.0</span>
         {/* V0.9.2: Asset statistics with hover tooltip */}
         <div
           className="relative"

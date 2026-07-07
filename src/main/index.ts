@@ -202,7 +202,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 1024,
     minHeight: 768,
-    title: 'Topo V1.1.0 - 网络拓扑绘制',
+    title: 'Topo V1.5.0 - 网络拓扑绘制',
     show: false,
     backgroundColor: '#FFFFFF',
     webPreferences: {

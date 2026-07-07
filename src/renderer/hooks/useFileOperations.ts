@@ -1,6 +1,5 @@
 import { useCallback, type RefObject } from 'react'
 import type { Node, Edge, ReactFlowInstance } from '@xyflow/react'
-import { toPng } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 import type { EdgeData } from '../types'
 import type { HistoryState } from './useHistory'
@@ -255,20 +254,130 @@ export function useFileOperations({
     [loadTopoFile, toast],
   )
 
+  // ── Image cropping helper ──────────────────────────────────
+  // Maps content screen coordinates (relative to .react-flow) to
+  // captured image pixels, then crops with padding.
+  const cropImage = (
+    dataUrl: string,
+    reactFlowRect: { width: number; height: number },
+    contentScreen: { x: number; y: number; width: number; height: number },
+    paddingPx: number,
+  ): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const scaleX = img.width / reactFlowRect.width
+        const scaleY = img.height / reactFlowRect.height
+
+        // Offset content coords to be relative to .react-flow origin
+        const cx = contentScreen.x
+        const cy = contentScreen.y
+        const cw = contentScreen.width
+        const ch = contentScreen.height
+
+        const sx = Math.max(0, Math.round((cx - paddingPx) * scaleX))
+        const sy = Math.max(0, Math.round((cy - paddingPx) * scaleY))
+        const sw = Math.min(img.width - sx, Math.round((cw + paddingPx * 2) * scaleX))
+        const sh = Math.min(img.height - sy, Math.round((ch + paddingPx * 2) * scaleY))
+
+        const canvas = document.createElement('canvas')
+        canvas.width = sw
+        canvas.height = sh
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.onerror = () => reject(new Error('Crop image load failed'))
+      img.src = dataUrl
+    })
+  }
+
   // ── Canvas capture helper ────────────────────────────────
+  // Uses Electron native capturePage (not html-to-image) to correctly
+  // render SVG elements with CSS variables, gradients, and animations.
+  // Rect is computed in the renderer at the current zoom level and passed
+  // to the main process — no zoomFactor manipulation, no coordinate mismatch.
+  // After capture, the image is cropped to the content bounding box (auto-crop).
   const captureCanvas = useCallback(async (): Promise<string | null> => {
-    if (!containerRef.current) return null
+    if (!containerRef.current || !rfInstance) return null
+
+    // Save current viewport to restore after capture
+    const savedViewport = rfInstance.getViewport()
+    let contentScreenBounds: { x: number; y: number; width: number; height: number } | null = null
+    let reactFlowRect: { left: number; top: number; width: number; height: number } | null = null
+
     try {
-      const dataUrl = await toPng(
-        containerRef.current.querySelector('.react-flow') as HTMLElement,
-        { backgroundColor: 'var(--color-canvas)', pixelRatio: 2 }
-      )
-      return dataUrl
+      // Fit all nodes into view for full-canvas capture
+      const allNodes = rfInstance.getNodes()
+      if (allNodes.length > 0) {
+        const bounds = rfInstance.getNodesBounds(allNodes)
+        rfInstance.fitBounds(bounds, { padding: 0.1, duration: 0, maxZoom: 2, minZoom: 0.05 })
+        // Wait for React to re-render with the new viewport
+        await new Promise<void>(resolve => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        })
+
+        // Compute content bounds relative to .react-flow element
+        // (same zoom level throughout — coordinates are consistent)
+        const elForBounds = containerRef.current.querySelector('.react-flow') as HTMLElement
+        if (elForBounds) {
+          const rfRect = elForBounds.getBoundingClientRect()
+          const topLeft = rfInstance.flowToScreenPosition({ x: bounds.x, y: bounds.y })
+          const bottomRight = rfInstance.flowToScreenPosition({
+            x: bounds.x + bounds.width,
+            y: bounds.y + bounds.height,
+          })
+          contentScreenBounds = {
+            x: topLeft.x - rfRect.left,
+            y: topLeft.y - rfRect.top,
+            width: bottomRight.x - topLeft.x,
+            height: bottomRight.y - topLeft.y,
+          }
+        }
+      }
+
+      // Get the .react-flow element (same zoom level as contentScreenBounds)
+      const el = containerRef.current.querySelector('.react-flow') as HTMLElement
+      if (!el) return null
+      reactFlowRect = el.getBoundingClientRect()
+      if (reactFlowRect.width < 10 || reactFlowRect.height < 10) return null
+
+      // Hide ReactFlow overlay widgets (MiniMap, Controls, Background) via CSS class
+      el.classList.add('react-flow--capturing')
+      // Wait a frame for the browser to apply the CSS rule before capture
+      await new Promise<void>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+
+      try {
+        // Capture with rect — main process does NOT change zoomFactor,
+        // so the captured image matches reactFlowRect/ contentScreenBounds exactly
+        const captureRect = {
+          x: Math.round(reactFlowRect.left),
+          y: Math.round(reactFlowRect.top),
+          width: Math.round(reactFlowRect.width),
+          height: Math.round(reactFlowRect.height),
+        }
+        const dataUrl = await window.electronAPI.captureCanvas(captureRect)
+        if (!dataUrl) return null
+
+        // Auto-crop to content bounds (with padding) if we have bounds
+        if (contentScreenBounds) {
+          return await cropImage(dataUrl, reactFlowRect, contentScreenBounds, 24)
+        }
+        return dataUrl
+      } finally {
+        // Always restore overlay visibility even if capture fails
+        el.classList.remove('react-flow--capturing')
+      }
     } catch (err) {
       console.error('Capture error:', err)
       return null
+    } finally {
+      // Restore original viewport
+      rfInstance.setViewport(savedViewport, { duration: 0 })
     }
-  }, [containerRef])
+  }, [containerRef, rfInstance])
 
   // ── Export PNG ───────────────────────────────────────────
   const handleExportPNG = useCallback(async () => {
@@ -289,15 +398,25 @@ export function useFileOperations({
     const dataUrl = await captureCanvas()
     if (!dataUrl) return
     try {
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px' })
+      // Load captured PNG to get its natural dimensions
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve(image)
+        image.onerror = () => reject(new Error('Failed to load captured image'))
+        image.src = dataUrl
+        // Timeout after 30 seconds to prevent hanging
+        setTimeout(() => reject(new Error('Image load timed out')), 30000)
+      })
+
+      // Auto-select orientation based on image aspect ratio
+      const imgRatio = img.width / img.height
+      const orientation = imgRatio >= 1 ? 'landscape' : 'portrait'
+
+      const pdf = new jsPDF({ orientation, unit: 'px' })
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
 
-      const img = new Image()
-      img.src = dataUrl
-      await new Promise<void>((resolve) => { img.onload = () => resolve() })
-
-      const imgRatio = img.width / img.height
+      // Scale image to fit page with 40px margins, maintaining aspect ratio
       let w = pageWidth - 40
       let h = w / imgRatio
       if (h > pageHeight - 40) {
@@ -305,7 +424,16 @@ export function useFileOperations({
         w = h * imgRatio
       }
       pdf.addImage(dataUrl, 'PNG', (pageWidth - w) / 2, (pageHeight - h) / 2, w, h)
-      const pdfDataUrl = pdf.output('datauristring')
+
+      // Use arraybuffer output + manual base64 encoding to avoid
+      // jsPDF 4.x datauristring format incompatibility (extra ;filename= param)
+      const buf = pdf.output('arraybuffer')
+      const bytes = new Uint8Array(buf)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+      const pdfDataUrl = 'data:application/pdf;base64,' + btoa(binary)
 
       const result = await window.electronAPI.exportPDF(pdfDataUrl)
       if (result.success) toast.showToast('PDF 导出成功', 'success')

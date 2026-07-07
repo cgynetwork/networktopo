@@ -417,7 +417,7 @@ function registerFileHandlers() {
     const r = await dialog.showSaveDialog(win, { title, defaultPath, filters })
     if (r.canceled) return { success: false, canceled: true }
     try {
-      const base64 = dataUrl.replace(/^data:[^;]+;base64,/, '')
+      const base64 = dataUrl.substring(dataUrl.lastIndexOf(',') + 1)
       fs.writeFileSync(r.filePath, Buffer.from(base64, 'base64'))
       return { success: true, filePath: r.filePath }
     } catch (e) { return { success: false, error: e.message } }
@@ -438,6 +438,22 @@ function registerFileHandlers() {
       const image = await win.webContents.capturePage(opts)
       return image.toDataURL()
     } catch (e) { return null }
+  })
+
+  // Capture canvas for export — uses native page capture.
+  // Rect is computed in the renderer at the current zoom level and passed in.
+  // No zoomFactor manipulation needed — coordinates are always consistent.
+  ipcMain.handle('capture:canvas', async (_e, rect) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+    try {
+      const opts = rect && rect.width > 10 ? rect : undefined
+      const image = await win.webContents.capturePage(opts)
+      return image.toDataURL()
+    } catch (e) {
+      console.error('capture:canvas error:', e)
+      return null
+    }
   })
 
   // ── Device image management ──────────────────────────────
@@ -561,18 +577,22 @@ function registerAutoSaveHandlers() {
 }
 
 // ── Recent files management ──────────────────────────────
-const RECENT_PATH = path.join(app.getPath('userData'), 'recent-files.json')
 const MAX_RECENT = 10
+
+function getRecentPath() {
+  return path.join(app.getPath('userData'), 'recent-files.json')
+}
 
 function loadRecent() {
   try {
-    if (fs.existsSync(RECENT_PATH)) return JSON.parse(fs.readFileSync(RECENT_PATH, 'utf-8'))
+    const p = getRecentPath()
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'))
   } catch (e) { /* ignore */ }
   return []
 }
 
 function saveRecent(list) {
-  try { fs.writeFileSync(RECENT_PATH, JSON.stringify(list, null, 2), 'utf-8') } catch (e) { /* ignore */ }
+  try { fs.writeFileSync(getRecentPath(), JSON.stringify(list, null, 2), 'utf-8') } catch (e) { /* ignore */ }
 }
 
 function addRecent(filePath) {
@@ -710,7 +730,7 @@ const menuTemplate = [
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
-    title: 'Topo V1.2.1 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
+    title: 'Topo V1.5.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
     webPreferences: {
       preload: path.join(__dirname, 'out', 'preload', 'index.js'),
       sandbox: false, contextIsolation: true, nodeIntegration: false,

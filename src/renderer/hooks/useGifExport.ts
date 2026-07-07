@@ -1,4 +1,5 @@
 import { useState, useCallback, type RefObject } from 'react'
+import type { ReactFlowInstance } from '@xyflow/react'
 import GIF from 'gif.js'
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url'
 import type { ToastContextValue } from '../context/ToastContext'
@@ -7,6 +8,8 @@ interface UseGifExportOptions {
   /** Ref to the ReactFlow container div */
   containerRef: RefObject<HTMLDivElement | null>
   toast: ToastContextValue
+  /** ReactFlow instance for viewport control (fitBounds for full-canvas capture) */
+  rfInstance: ReactFlowInstance | null
 }
 
 interface UseGifExportReturn {
@@ -17,6 +20,7 @@ interface UseGifExportReturn {
 export function useGifExport({
   containerRef,
   toast,
+  rfInstance,
 }: UseGifExportOptions): UseGifExportReturn {
   const [isExportingGIF, setIsExportingGIF] = useState(false)
 
@@ -26,11 +30,30 @@ export function useGifExport({
     if (!el) return
 
     setIsExportingGIF(true)
+
+    // Save current viewport and fit all nodes for full-canvas capture
+    const savedViewport = rfInstance?.getViewport() ?? null
+    if (rfInstance) {
+      const allNodes = rfInstance.getNodes()
+      if (allNodes.length > 0) {
+        const bounds = rfInstance.getNodesBounds(allNodes)
+        rfInstance.fitBounds(bounds, { padding: 0.1, duration: 0, maxZoom: 2, minZoom: 0.05 })
+      }
+    }
+
+    // Hide ReactFlow overlay widgets (MiniMap, Controls, Background) during capture
+    el.classList.add('react-flow--capturing')
+
+    // Wait for browser to apply CSS + ReactFlow to re-render
+    await new Promise<void>(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    })
+
     try {
+      // Compute rect at current zoom level — no zoomFactor manipulation
       const rect = el.getBoundingClientRect()
       if (rect.width < 50 || rect.height < 50) {
         toast.showToast('画布区域太小，无法导出 GIF', 'warning')
-        setIsExportingGIF(false)
         return
       }
 
@@ -85,7 +108,6 @@ export function useGifExport({
 
       if (frames.length === 0) {
         toast.showToast('未能捕获任何帧，GIF 导出失败', 'error')
-        setIsExportingGIF(false)
         return
       }
 
@@ -123,9 +145,13 @@ export function useGifExport({
       console.error('Export GIF error:', err)
       toast.showToast('GIF 导出失败，请重试', 'error')
     } finally {
+      el.classList.remove('react-flow--capturing')
+      if (rfInstance && savedViewport) {
+        rfInstance.setViewport(savedViewport, { duration: 0 })
+      }
       setIsExportingGIF(false)
     }
-  }, [isExportingGIF, containerRef, toast])
+  }, [isExportingGIF, containerRef, toast, rfInstance])
 
   return { isExportingGIF, handleExportGIF }
 }

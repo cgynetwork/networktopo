@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportGIF: (dataUrl: string) => ipcRenderer.invoke('export:gif', dataUrl),
   captureFrame: (rect?: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke('capture:frame', rect),
+  // capture:canvas — rect computed in renderer at current zoom, passed to main process
+  captureCanvas: (rect: { x: number; y: number; width: number; height: number }) =>
+    ipcRenderer.invoke('capture:canvas', rect),
 
   // Recent files
   getRecentFiles: () => ipcRenderer.invoke('file:getRecent'),

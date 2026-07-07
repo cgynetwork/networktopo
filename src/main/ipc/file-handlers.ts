@@ -224,7 +224,7 @@ export function registerFileHandlers(): void {
 
     try {
       // Convert data URL to buffer and save
-      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+      const base64 = dataUrl.substring(dataUrl.lastIndexOf(',') + 1)
       const buffer = Buffer.from(base64, 'base64')
       writeFileSync(result.filePath, buffer)
       return { success: true, filePath: result.filePath }
@@ -249,7 +249,7 @@ export function registerFileHandlers(): void {
     }
 
     try {
-      const base64 = dataUrl.replace(/^data:image\/gif;base64,/, '')
+      const base64 = dataUrl.substring(dataUrl.lastIndexOf(',') + 1)
       const buffer = Buffer.from(base64, 'base64')
       writeFileSync(result.filePath, buffer)
       return { success: true, filePath: result.filePath }
@@ -272,6 +272,22 @@ export function registerFileHandlers(): void {
     }
   })
 
+  // Capture canvas for export — uses native page capture.
+  // Rect is computed in the renderer at the current zoom level and passed in.
+  // No zoomFactor manipulation needed — coordinates are always consistent.
+  ipcMain.handle('capture:canvas', async (_event, rect?: { x: number; y: number; width: number; height: number }) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+    try {
+      const opts = rect && rect.width > 10 ? rect : undefined
+      const image = await win.webContents.capturePage(opts)
+      return image.toDataURL()
+    } catch (err: any) {
+      console.error('capture:canvas error:', err)
+      return null
+    }
+  })
+
   // Export PDF (handled in renderer using jspdf, then saved via this handler)
   ipcMain.handle('export:pdf', async (_event, dataUrl: string) => {
     const win = BrowserWindow.getFocusedWindow()
@@ -288,7 +304,7 @@ export function registerFileHandlers(): void {
     }
 
     try {
-      const base64 = dataUrl.replace(/^data:application\/pdf;base64,/, '')
+      const base64 = dataUrl.substring(dataUrl.lastIndexOf(',') + 1)
       const buffer = Buffer.from(base64, 'base64')
       writeFileSync(result.filePath, buffer)
       return { success: true, filePath: result.filePath }

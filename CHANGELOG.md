@@ -4,6 +4,24 @@ Topo 网络拓扑绘制软件所有版本变更记录。
 
 ---
 
+## [1.5.0] — 2026-07-08
+
+### Fixed
+- **导出功能完全重写**：修复三轮迭代积累的坐标错位 bug
+  - PNG/PDF/GIF 导出现在正确捕捉拓扑内容（而非空白/偏移区域）
+  - 移除 `zoomFactor` 操作，消除渲染进程与主进程间的坐标系统不一致
+  - 自动裁剪画布空白区域，仅保留拓扑内容（含 24px 内边距）
+  - 导出仅含画布内容，工具栏/侧边栏/状态栏等 UI 元素不会出现
+  - ReactFlow 叠加层（MiniMap/Controls/Background）通过 CSS class 在截取时隐藏
+  - 导出后画布视图自动恢复到导出前状态
+
+### Changed
+- `capture:canvas` IPC handler 简化：渲染进程传入 rect，主进程直接 `capturePage`（不改变 zoomFactor）
+- 移除 `gif:boostZoom` / `gif:restoreZoom` IPC handlers
+- 版本号统一升级至 V1.5.0（package.json / 窗口标题 / 工具栏）
+
+---
+
 ## [1.2.1] — 2026-07-03
 
 ### Added

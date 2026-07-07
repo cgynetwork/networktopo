@@ -1189,6 +1189,7 @@ export default function App() {
   const { isExportingGIF, handleExportGIF } = useGifExport({
     containerRef: reactFlowWrapper,
     toast,
+    rfInstance,
   })
 
   // ── Menu action listener ────────────────────────────────

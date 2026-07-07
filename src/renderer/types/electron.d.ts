@@ -14,6 +14,8 @@ export interface ElectronAPI {
   exportPDF: (dataUrl: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>
   exportGIF: (dataUrl: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>
   captureFrame: (rect?: { x: number; y: number; width: number; height: number }) => Promise<string | null>
+  // capture:canvas — rect computed in renderer at current zoom, passed to main process
+  captureCanvas: (rect: { x: number; y: number; width: number; height: number }) => Promise<string | null>
 
   // Recent files
   getRecentFiles: () => Promise<RecentFileEntry[]>
