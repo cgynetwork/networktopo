@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import i18next from '../i18n'
 
 interface Props {
   children: ReactNode
@@ -25,7 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('[ErrorBoundary] 捕获到渲染错误:', error, errorInfo)
+    console.error(i18next.t('error.captured'), error, errorInfo)
     this.setState({ errorInfo })
   }
 
@@ -36,6 +37,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.hasError) {
       const { error, errorInfo } = this.state
+      const t = i18next.t.bind(i18next)
       return (
         <div style={{
           width: '100vw',
@@ -56,10 +58,10 @@ export default class ErrorBoundary extends Component<Props, State> {
             boxShadow: '0 4px 24px rgba(231,76,60,0.3)',
           }}>
             <h2 style={{ color: '#e74c3c', margin: '0 0 8px', fontSize: 20 }}>
-              ⚠️ 渲染错误
+              ⚠️ {t('error.title')}
             </h2>
             <p style={{ color: '#999', margin: '0 0 16px', fontSize: 13 }}>
-              React 组件树发生未捕获异常。请将以下信息反馈给开发者。
+              {t('error.message')}
             </p>
             <div style={{
               backgroundColor: '#0f0f23',
@@ -101,10 +103,10 @@ export default class ErrorBoundary extends Component<Props, State> {
                 fontWeight: 600,
               }}
             >
-              尝试恢复
+              {t('error.tryRecover')}
             </button>
             <span style={{ color: '#666', fontSize: 11, marginLeft: 12 }}>
-              恢复后请刷新页面 (Ctrl+R)
+              {t('error.recoverHint')}
             </span>
           </div>
         </div>

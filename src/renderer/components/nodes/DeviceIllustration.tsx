@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { t } from '../../i18n'
 import { parsePortsInfo, getPortLayout, type RenderedPort } from '../../utils/portParser'
 import type { AppImageItem } from '../../types'
 
@@ -901,14 +903,14 @@ function InternetAppSvg({ accent, svgW, svgH, appImages }: {
             </g>
             <text x={svgW / 2} y={chassisY + chassisH / 2 + 14} textAnchor="middle"
               fontFamily="'Microsoft YaHei', sans-serif" fontSize="5.5" fill={accent} opacity="0.35">
-              上传业务图片
+              {t('propertyPanel.uploadAppImage')}
             </text>
           </g>
         )}
       </g>
       {/* Label */}
       <text x={svgW / 2} y={Math.round(svgH * 0.84)} textAnchor="middle" fontFamily="'Microsoft YaHei', sans-serif"
-        fontSize="8" fontWeight="700" fill={accent}>互联网应用</text>
+        fontSize="8" fontWeight="700" fill={accent}>{t('propertyPanel.internetApp')}</text>
       {/* CP dots */}
       <CpDot cx={cpLX} cy={cpY} accent={accent} />
       <CpDot cx={cpRX} cy={cpY} accent={accent} />
@@ -1105,6 +1107,7 @@ interface DeviceIllustrationProps {
 }
 
 export default function DeviceIllustration({ categoryName, accent, portsInfo, ports, usedPorts, svgW, svgH, isStacked, hasTunnelPorts, deviceModel, appImages, tunnelPortCount }: DeviceIllustrationProps) {
+  const { t } = useTranslation()
   // V1.2.0: SDWAN category uses model-based dispatch for different visual types
   if (categoryName === 'SDWAN') {
     const svgType = deviceModel ? getSdwanSvgType(deviceModel) : 'node'

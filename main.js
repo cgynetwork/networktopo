@@ -8,6 +8,47 @@ const fs = require('fs')
 const crypto = require('crypto')
 const Database = require('better-sqlite3')
 
+// ── Simple i18n for main process ──────────────────────────
+let currentLang = 'zh'
+const translations = { zh: null, en: null }
+
+function loadTranslations() {
+  try {
+    // Try built output path first (production)
+    const resDir = path.join(__dirname, 'out', 'renderer', 'i18n', 'resources')
+    translations.zh = JSON.parse(fs.readFileSync(path.join(resDir, 'zh.json'), 'utf-8'))
+    translations.en = JSON.parse(fs.readFileSync(path.join(resDir, 'en.json'), 'utf-8'))
+  } catch {
+    try {
+      // Try source path (dev mode)
+      const resDir = path.join(__dirname, 'src', 'renderer', 'i18n', 'resources')
+      translations.zh = JSON.parse(fs.readFileSync(path.join(resDir, 'zh.json'), 'utf-8'))
+      translations.en = JSON.parse(fs.readFileSync(path.join(resDir, 'en.json'), 'utf-8'))
+    } catch {
+      // Fallback: empty
+      translations.zh = {}
+      translations.en = {}
+    }
+  }
+}
+
+function mt(key, params) {
+  const resource = translations[currentLang] || translations.zh || {}
+  const keys = key.split('.')
+  let val = resource
+  for (const k of keys) {
+    if (val == null) break
+    val = val[k]
+  }
+  if (typeof val !== 'string') return key
+  if (params) {
+    return val.replace(/\{\{(\w+)\}\}/g, (_, name) => params[name] != null ? params[name] : _)
+  }
+  return val
+}
+
+loadTranslations()
+
 // ── Database ──────────────────────────────────────────────
 let db = null
 
@@ -622,10 +663,11 @@ function rebuildRecentMenu(menu) {
     for (let i = recentEndIdx; i >= recentStartIdx; i--) submenu.removeAt(i)
   }
 
-  // Find insertion point before Exit
+  // Find insertion point before Exit/Quit
+  const exitLabels = ['退出', 'Exit', 'Quit']
   let exitIdx = -1
   for (let i = 0; i < submenu.items.length; i++) {
-    if (submenu.items[i].label === '退出' || submenu.items[i].label === 'Exit') { exitIdx = i; break }
+    if (exitLabels.includes(submenu.items[i].label)) { exitIdx = i; break }
   }
   let insertIdx = exitIdx >= 0 ? exitIdx : submenu.items.length
   if (insertIdx > 0 && submenu.items[insertIdx - 1].type === 'separator') insertIdx--
@@ -643,7 +685,7 @@ function rebuildRecentMenu(menu) {
       })
     }
   } else {
-    recentItems.push({ label: '  无最近文件', enabled: false })
+    recentItems.push({ label: mt('menu.file.noRecent'), enabled: false })
   }
   recentItems.push({ type: 'separator', label: 'recent-files-end', visible: false })
 
@@ -664,73 +706,77 @@ function sendToRenderer(arg1, arg2) {
 }
 
 // ── Menu ──────────────────────────────────────────────────
-const menuTemplate = [
-  {
-    label: 'File',
-    submenu: [
-      { label: '新建', accelerator: 'CmdOrCtrl+N', click: () => sendToRenderer('menu:action', 'new') },
-      { label: '打开...', accelerator: 'CmdOrCtrl+O', click: () => sendToRenderer('menu:action', 'open') },
-      { type: 'separator' },
-      { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendToRenderer('menu:action', 'save') },
-      { label: '另存为...', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendToRenderer('menu:action', 'saveAs') },
-      { type: 'separator' },
-      { label: '导出 PNG...', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendToRenderer('menu:action', 'exportPNG') },
-      { label: '导出 PDF...', accelerator: 'CmdOrCtrl+Shift+P', click: () => sendToRenderer('menu:action', 'exportPDF') },
-      { label: '导出 GIF...', click: () => sendToRenderer('menu:action', 'exportGIF') },
-      { type: 'separator' },
-      { label: '退出', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
-    ],
-  },
-  {
-    label: 'Edit',
-    submenu: [
-      { label: '撤销', accelerator: 'CmdOrCtrl+Z', click: () => sendToRenderer('menu:action', 'undo') },
-      { label: '重做', accelerator: 'CmdOrCtrl+Y', click: () => sendToRenderer('menu:action', 'redo') },
-      { type: 'separator' },
-      { label: '全选', accelerator: 'CmdOrCtrl+A', click: () => sendToRenderer('menu:action', 'selectAll') },
-      { label: '删除', accelerator: 'Delete', click: () => sendToRenderer('menu:action', 'deleteSelected') },
-    ],
-  },
-  {
-    label: 'View',
-    submenu: [
-      { label: '放大', accelerator: 'CmdOrCtrl+=', click: () => sendToRenderer('menu:action', 'zoomIn') },
-      { label: '缩小', accelerator: 'CmdOrCtrl+-', click: () => sendToRenderer('menu:action', 'zoomOut') },
-      { label: '适应窗口', accelerator: 'CmdOrCtrl+0', click: () => sendToRenderer('menu:action', 'fitView') },
-      { type: 'separator' },
-      { label: '切换设备面板', accelerator: 'CmdOrCtrl+B', click: () => sendToRenderer('menu:action', 'toggleSidebar') },
-    ],
-  },
-  {
-    label: 'Help',
-    submenu: [
-      {
-        label: '关于 Topo',
-        click: () => {
-          dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
-            type: 'info', title: '关于 Topo', message: 'Topo — 网络拓扑绘制软件',
-            detail: `版本: v${app.getVersion()}\n基于 Electron + React + React Flow\n用于快速绘制网络拓扑图，支持设备拖拽、自动连线、PNG/PDF/GIF 导出。`,
-          })
+function buildMenuTemplate() {
+  return [
+    {
+      label: 'File',
+      submenu: [
+        { label: mt('menu.file.new'), accelerator: 'CmdOrCtrl+N', click: () => sendToRenderer('menu:action', 'new') },
+        { label: mt('menu.file.open'), accelerator: 'CmdOrCtrl+O', click: () => sendToRenderer('menu:action', 'open') },
+        { type: 'separator' },
+        { label: mt('menu.file.save'), accelerator: 'CmdOrCtrl+S', click: () => sendToRenderer('menu:action', 'save') },
+        { label: mt('menu.file.saveAs'), accelerator: 'CmdOrCtrl+Shift+S', click: () => sendToRenderer('menu:action', 'saveAs') },
+        { type: 'separator' },
+        { label: mt('menu.file.exportPNG'), accelerator: 'CmdOrCtrl+Shift+E', click: () => sendToRenderer('menu:action', 'exportPNG') },
+        { label: mt('menu.file.exportPDF'), accelerator: 'CmdOrCtrl+Shift+P', click: () => sendToRenderer('menu:action', 'exportPDF') },
+        { label: mt('menu.file.exportGIF'), click: () => sendToRenderer('menu:action', 'exportGIF') },
+        { type: 'separator' },
+        { label: mt('menu.file.quit'), accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { label: mt('menu.edit.undo'), accelerator: 'CmdOrCtrl+Z', click: () => sendToRenderer('menu:action', 'undo') },
+        { label: mt('menu.edit.redo'), accelerator: 'CmdOrCtrl+Y', click: () => sendToRenderer('menu:action', 'redo') },
+        { type: 'separator' },
+        { label: mt('menu.edit.selectAll'), accelerator: 'CmdOrCtrl+A', click: () => sendToRenderer('menu:action', 'selectAll') },
+        { label: mt('menu.edit.delete'), accelerator: 'Delete', click: () => sendToRenderer('menu:action', 'deleteSelected') },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: mt('menu.view.zoomIn'), accelerator: 'CmdOrCtrl+=', click: () => sendToRenderer('menu:action', 'zoomIn') },
+        { label: mt('menu.view.zoomOut'), accelerator: 'CmdOrCtrl+-', click: () => sendToRenderer('menu:action', 'zoomOut') },
+        { label: mt('menu.view.fitView'), accelerator: 'CmdOrCtrl+0', click: () => sendToRenderer('menu:action', 'fitView') },
+        { type: 'separator' },
+        { label: mt('menu.view.toggleSidebar'), accelerator: 'CmdOrCtrl+B', click: () => sendToRenderer('menu:action', 'toggleSidebar') },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: mt('menu.help.about'),
+          click: () => {
+            dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
+              type: 'info', title: mt('menu.help.aboutTitle'), message: mt('menu.help.aboutMessage'),
+              detail: mt('menu.help.aboutDetail', { version: app.getVersion() }),
+            })
+          },
         },
-      },
-      {
-        label: '联系信息',
-        click: () => {
-          dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
-            type: 'info', title: '联系信息', message: '📧 联系方式',
-            detail: 'Klay\nEmail: cgynetwork@gmail.com',
-          })
+        {
+          label: mt('menu.help.contact'),
+          click: () => {
+            dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
+              type: 'info', title: mt('menu.help.contactTitle'), message: mt('menu.help.contactMessage'),
+              detail: mt('menu.help.contactDetail'),
+            })
+          },
         },
-      },
-    ],
-  },
-]
+      ],
+    },
+  ]
+}
 
 // ── Window ───────────────────────────────────────────────
+let mainWindow = null
+
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400, height: 900, minWidth: 1024, minHeight: 768,
-    title: 'Topo V1.5.0 - 网络拓扑绘制', show: false, backgroundColor: '#FFFFFF',
+    title: mt('window.title'), show: false, backgroundColor: '#FFFFFF',
     webPreferences: {
       preload: path.join(__dirname, 'out', 'preload', 'index.js'),
       sandbox: false, contextIsolation: true, nodeIntegration: false,
@@ -814,8 +860,19 @@ registerFileHandlers()
 registerAutoSaveHandlers()
 registerRecentHandlers()
 registerTemplateHandlers()
+
+// Language change handler — rebuild native menu
+ipcMain.handle('lang:changed', (_e, lang) => {
+  currentLang = lang
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate()))
+  rebuildRecentMenu(Menu.getApplicationMenu())
+  if (mainWindow) {
+    mainWindow.setTitle(mt('window.title'))
+  }
+})
+
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate))
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate()))
   rebuildRecentMenu(Menu.getApplicationMenu())
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

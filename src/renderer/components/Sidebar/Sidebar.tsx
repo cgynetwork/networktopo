@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CategoryRow, DeviceRow } from '../../types'
 import { RACK_SIZES } from '../../utils/rackUtils'
 import AddDeviceModal from './AddDeviceModal'
@@ -23,11 +24,21 @@ const CATEGORY_ICONS: Record<string, string> = {
   default: '📦',
 }
 
+// Map rack uHeight to translation key suffix
+function getRackLabelKey(uHeight: number): string {
+  if (uHeight <= 12) return 'sidebar.rackSizes.wallMount'
+  if (uHeight <= 22) return 'sidebar.rackSizes.small'
+  if (uHeight <= 36) return 'sidebar.rackSizes.medium'
+  if (uHeight === 42) return 'sidebar.rackSizes.standard'
+  return 'sidebar.rackSizes.large'
+}
+
 interface SidebarProps {
   // Phase 3: onDragStart will be wired for drag-to-canvas
 }
 
 export default function Sidebar(_props: SidebarProps) {
+  const { t } = useTranslation()
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [devices, setDevices] = useState<DeviceRow[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -161,7 +172,7 @@ export default function Sidebar(_props: SidebarProps) {
           <div className="relative">
             <input
               type="text"
-              placeholder="搜索设备..."
+              placeholder={t('sidebar.searchPlaceholder')}
               value={searchQuery}
               onChange={handleSearchChange}
               className="w-full h-8 pl-8 pr-2 text-xs rounded border border-border bg-surface text-text-primary placeholder-text-secondary focus:outline-none focus:border-select-border transition-colors"
@@ -171,7 +182,7 @@ export default function Sidebar(_props: SidebarProps) {
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-2">
           <div className="text-xs text-text-secondary px-2 py-1 mb-1">
-            搜索到 {searchResults.length} 个设备
+            {t('sidebar.searchResults', { count: searchResults.length })}
           </div>
           {searchResults.map((device) => (
             <DeviceListItem
@@ -194,7 +205,7 @@ export default function Sidebar(_props: SidebarProps) {
         <div className="relative">
           <input
             type="text"
-            placeholder="搜索设备..."
+            placeholder={t('sidebar.searchPlaceholder')}
             value={searchQuery}
             onChange={handleSearchChange}
             className="w-full h-8 pl-8 pr-2 text-xs rounded border border-border bg-surface text-text-primary placeholder-text-secondary focus:outline-none focus:border-select-border transition-colors"
@@ -206,7 +217,7 @@ export default function Sidebar(_props: SidebarProps) {
       {/* Category list */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {loading && (
-          <div className="py-8 text-center text-xs text-text-secondary">加载设备库...</div>
+          <div className="py-8 text-center text-xs text-text-secondary">{t('sidebar.loading')}</div>
         )}
 
         {/* ── V1.1.0: Rack cabinet section ── */}
@@ -214,10 +225,10 @@ export default function Sidebar(_props: SidebarProps) {
           <div className="mb-3">
             <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
               <span className="text-sm">🗄️</span>
-              <span className="text-sm font-semibold text-text-primary">网络机柜</span>
+              <span className="text-sm font-semibold text-text-primary">{t('sidebar.rackSection')}</span>
             </div>
             <div className="text-2xs text-text-secondary px-2 mb-1.5">
-              拖入画布后，再将设备拖入机柜自动装配
+              {t('sidebar.rackSubtitle')}
             </div>
             <div className="ml-2 pl-3 border-l border-border grid grid-cols-2 gap-1">
               {RACK_SIZES.map((rack) => (
@@ -236,10 +247,7 @@ export default function Sidebar(_props: SidebarProps) {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-text-primary truncate">
-                      {rack.uHeight}U
-                    </div>
-                    <div className="text-2xs text-text-secondary truncate">
-                      {rack.label.replace(/^\d+U\s*/, '')}
+                      {t(getRackLabelKey(rack.uHeight), { u: rack.uHeight })}
                     </div>
                   </div>
                 </div>
@@ -276,7 +284,7 @@ export default function Sidebar(_props: SidebarProps) {
                 {isExpanded && (
                   <div className="ml-2 pl-3 border-l border-border">
                     {catDevices.length === 0 ? (
-                      <div className="py-4 text-center text-xs text-text-secondary">暂无设备</div>
+                      <div className="py-4 text-center text-xs text-text-secondary">{t('sidebar.noDevices')}</div>
                     ) : (
                       catDevices.map((device) => (
                         <DeviceListItem
@@ -300,10 +308,10 @@ export default function Sidebar(_props: SidebarProps) {
           onClick={() => { setEditingDevice(null); setShowAddModal(true); }}
           className="w-full h-8 text-xs font-medium border border-dashed border-select-border text-select-border rounded hover:bg-select-bg transition-colors"
         >
-          ＋ 自定义设备
+          {t('sidebar.addCustomDevice')}
         </button>
         <div className="text-xs text-text-secondary text-center">
-          {devices.length} 个设备 · {categories.length} 个分类
+          {t('sidebar.footerSummary', { deviceCount: devices.length, categoryCount: categories.length })}
         </div>
       </div>
 
@@ -345,12 +353,12 @@ export default function Sidebar(_props: SidebarProps) {
       {/* Delete device confirmation */}
       <ConfirmDialog
         open={deletingDevice !== null}
-        title="确认删除设备？"
+        title={t('sidebar.deleteConfirmTitle')}
         message={deletingDevice ? (
-          <>即将从数据库中永久删除 <strong>{deletingDevice.vendor_name} {deletingDevice.model}</strong>。此操作不可撤销。</>
+          <>{t('sidebar.deleteConfirmMessage', { name: `${deletingDevice.vendor_name} ${deletingDevice.model}` })}</>
         ) : ''}
-        confirmLabel="删除"
-        cancelLabel="取消"
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
         variant="danger"
         onConfirm={handleDeleteDevice}
         onCancel={() => setDeletingDevice(null)}
@@ -405,6 +413,7 @@ function DeviceListItem({
 
 // ── Hover tooltip ──────────────────────────────────────────
 function DeviceTooltip({ device }: { device: DeviceRow }) {
+  const { t } = useTranslation()
   return (
     <div className="fixed left-[270px] top-20 z-50 w-64 p-3 bg-surface border border-border rounded-lg shadow-lg pointer-events-none">
       <div className="text-sm font-semibold text-text-primary">
@@ -422,7 +431,7 @@ function DeviceTooltip({ device }: { device: DeviceRow }) {
       )}
       {device.ports_info && (
         <div className="mt-1.5 text-2xs text-text-secondary">
-          <span className="font-medium">端口：</span>{device.ports_info}
+          <span className="font-medium">{t('sidebar.portPrefix')}</span>{device.ports_info}
         </div>
       )}
     </div>

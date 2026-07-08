@@ -5,6 +5,7 @@ import type { EdgeData } from '../types'
 import type { HistoryState } from './useHistory'
 import type { ToastContextValue } from '../context/ToastContext'
 import { migrateViewMode } from '../utils/rackUtils'
+import { t } from '../i18n'
 
 interface UseFileOperationsOptions {
   rfInstance: ReactFlowInstance | null
@@ -128,10 +129,10 @@ export function useFileOperations({
       if (result.success && result.filePath) {
         setCurrentFilePath(result.filePath)
         setIsDirty(false)
-        toast.showToast('文件已保存', 'success')
+        toast.showToast(t('toast.fileSaved'), 'success')
         window.electronAPI.clearAutoSave().catch(() => {})
       } else if (!result.canceled && result.error) {
-        toast.showToast('保存失败: ' + result.error, 'error')
+        toast.showToast(t('toast.fileSaveFailed', { error: result.error }), 'error')
       }
     } catch (err) {
       console.error('Save error:', err)
@@ -148,10 +149,10 @@ export function useFileOperations({
       if (result.success && result.filePath) {
         setCurrentFilePath(result.filePath)
         setIsDirty(false)
-        toast.showToast('文件已保存', 'success')
+        toast.showToast(t('toast.fileSaved'), 'success')
         window.electronAPI.clearAutoSave().catch(() => {})
       } else if (!result.canceled && result.error) {
-        toast.showToast('保存失败: ' + result.error, 'error')
+        toast.showToast(t('toast.fileSaveFailed', { error: result.error }), 'error')
       }
     } catch (err) {
       console.error('Save error:', err)
@@ -210,7 +211,7 @@ export function useFileOperations({
       setIsDirty(false)
       history.clearHistory()
       window.electronAPI.clearAutoSave().catch(() => {})
-      toast.showToast('文件已打开', 'success')
+      toast.showToast(t('toast.fileOpened'), 'success')
       window.electronAPI.addRecentFile(filePath).catch(() => {})
     },
     [nodes, edges, setNodes, setEdges, setPanelCollapsed, setCurrentFilePath,
@@ -227,7 +228,7 @@ export function useFileOperations({
       }
     } catch (err) {
       console.error('Open error:', err)
-      toast.showToast('打开文件失败', 'error')
+      toast.showToast(t('toast.fileOpenFailed'), 'error')
     }
   }, [loadTopoFile, setShowOpenConfirm, toast])
 
@@ -248,7 +249,7 @@ export function useFileOperations({
         }
       } catch (err) {
         console.error('Open error:', err)
-        toast.showToast('打开文件失败', 'error')
+        toast.showToast(t('toast.fileOpenFailed'), 'error')
       }
     },
     [loadTopoFile, toast],
@@ -385,11 +386,11 @@ export function useFileOperations({
     if (!dataUrl) return
     try {
       const result = await window.electronAPI.exportPNG(dataUrl)
-      if (result.success) toast.showToast('PNG 导出成功', 'success')
-      else if (!result.canceled) toast.showToast('PNG 导出失败', 'error')
+      if (result.success) toast.showToast(t('toast.pngExportSuccess'), 'success')
+      else if (!result.canceled) toast.showToast(t('toast.pngExportFailed'), 'error')
     } catch (err) {
       console.error('Export PNG error:', err)
-      toast.showToast('PNG 导出失败', 'error')
+      toast.showToast(t('toast.pngExportFailed'), 'error')
     }
   }, [captureCanvas, toast])
 
@@ -436,11 +437,11 @@ export function useFileOperations({
       const pdfDataUrl = 'data:application/pdf;base64,' + btoa(binary)
 
       const result = await window.electronAPI.exportPDF(pdfDataUrl)
-      if (result.success) toast.showToast('PDF 导出成功', 'success')
-      else if (!result.canceled) toast.showToast('PDF 导出失败', 'error')
+      if (result.success) toast.showToast(t('toast.pdfExportSuccess'), 'success')
+      else if (!result.canceled) toast.showToast(t('toast.pdfExportFailed'), 'error')
     } catch (err) {
       console.error('Export PDF error:', err)
-      toast.showToast('PDF 导出失败', 'error')
+      toast.showToast(t('toast.pdfExportFailed'), 'error')
     }
   }, [captureCanvas, toast])
 

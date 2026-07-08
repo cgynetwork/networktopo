@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef, DragEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ReactFlow,
   Background,
@@ -28,6 +29,8 @@ import RackDevicePickerModal from './components/RackDevicePickerModal'
 import DeviceNode from './components/nodes/DeviceNode'
 import RackNode from './components/nodes/RackNode'
 import RackDeviceNode from './components/nodes/RackDeviceNode'
+import { useTheme } from './context/ThemeContext'
+import { useLanguage } from './context/LanguageContext'
 import AnimatedEdge from './components/edges/AnimatedEdge'
 import type { DeviceRow, EdgeData, PathStyle, RackNodeData, RackDeviceNodeData, RackViewMode } from './types'
 import { getDeviceFromNode, getNodeData } from './types'
@@ -42,7 +45,6 @@ import {
 import { useHistory } from './hooks/useHistory'
 import { useGifExport } from './hooks/useGifExport'
 import { useFileOperations } from './hooks/useFileOperations'
-import { useTheme } from './context/ThemeContext'
 import { useToast } from './context/ToastContext'
 import { DragStateContext } from './context/DragStateContext'
 import { DemoModeContext } from './context/DemoModeContext'
@@ -99,6 +101,8 @@ export default function App() {
   const edgesRef = useRef(edges)
   edgesRef.current = edges
   const { theme, toggleTheme } = useTheme()
+  const { t } = useTranslation()
+  const { language, toggleLanguage } = useLanguage()
   const toast = useToast()
 
   // ── Canvas search ────────────────────────────────────────
@@ -453,7 +457,7 @@ export default function App() {
     ))
     setIsDirty(true)
     setContextMenu(null)
-    toast.showToast('已取消分组', 'info')
+    toast.showToast(t('toast.ungrouped'), 'info')
   }, [contextMenu, setNodes, edges, history, toast])
 
   // ── Ungroup batch (selected nodes) ──────────────────────
@@ -471,7 +475,7 @@ export default function App() {
     ))
     setIsDirty(true)
     setContextMenu(null)
-    toast.showToast(`已取消分组（${groupedCount} 台设备）`, 'info')
+    toast.showToast(t('toast.ungroupedWithCount', { count: groupedCount }), 'info')
   }, [contextMenu, setNodes, edges, history, toast])
 
   // ── V1.1.1: Add device to rack via context menu ──────────
@@ -502,7 +506,7 @@ export default function App() {
 
     const freeU = findFreeUSlot(rackData.uHeight, targetUHeight, occupiedSlots)
     if (freeU < 0) {
-      toast.showToast('机柜空间不足，无法放入该设备', 'warning')
+      toast.showToast(t('toast.rackSpaceFull'), 'warning')
       setRackDevicePicker(null)
       return
     }
@@ -529,7 +533,7 @@ export default function App() {
     setNodes((nds) => [...nds, newNode])
     setIsDirty(true)
     setRackDevicePicker(null)
-    toast.showToast(`已添加 ${device.vendor_name} ${device.model} 到 ${rackData.label}`, 'success')
+    toast.showToast(t('toast.deviceAddedToRack', { vendor: device.vendor_name, model: device.model, label: rackData.label }), 'success')
   }, [edges, history, setNodes, toast])
 
   // ── Copy node (single selection) ──────────────────────────
@@ -642,7 +646,7 @@ export default function App() {
     const name = await showPrompt('保存拓扑模板', '请输入模板名称：', '')
     if (!name || !name.trim()) return
     if (!rfInstance) {
-      toast.showToast('画布未就绪，请稍后重试', 'error')
+      toast.showToast(t('toast.canvasNotReady'), 'error')
       return
     }
     try {
@@ -650,13 +654,13 @@ export default function App() {
       const topoFile = { version: '1.0.0', nodes: flow.nodes, edges: flow.edges, viewport: flow.viewport }
       const result = await window.electronAPI.saveTemplate(name.trim(), JSON.stringify(topoFile, null, 2))
       if (result.success) {
-        toast.showToast(`模板「${result.name}」已保存`, 'success')
+        toast.showToast(t('toast.templateSaved', { name: result.name }), 'success')
         refreshTemplateList()
       } else {
-        toast.showToast(`保存失败：${result.error}`, 'error')
+        toast.showToast(t('toast.templateSaveFailed', { error: result.error }), 'error')
       }
     } catch (err: any) {
-      toast.showToast(`保存模板失败：${err.message}`, 'error')
+      toast.showToast(t('toast.saveTemplateFailed', { error: err.message }), 'error')
     }
   }, [rfInstance, refreshTemplateList, toast, showPrompt])
 
@@ -680,20 +684,20 @@ export default function App() {
       setEdges(loadedEdges)
       setIsDirty(true)
       history.clearHistory()
-      toast.showToast(`已加载模板「${templateName}」`, 'success')
+      toast.showToast(t('toast.templateLoaded', { name: templateName }), 'success')
       setContextMenu(null)
     } catch (err: any) {
-      toast.showToast(`加载模板失败：${err.message}`, 'error')
+      toast.showToast(t('toast.loadTemplateFailed', { error: err.message }), 'error')
     }
   }, [setNodes, setEdges, edges, history, toast])
 
   const handleDeleteTemplate = useCallback(async (templateName: string) => {
     try {
       await window.electronAPI.deleteTemplate(templateName)
-      toast.showToast(`模板「${templateName}」已删除`, 'info')
+      toast.showToast(t('toast.templateDeleted', { name: templateName }), 'info')
       refreshTemplateList()
     } catch (err: any) {
-      toast.showToast(`删除失败：${err.message}`, 'error')
+      toast.showToast(t('toast.deleteTemplateFailed', { error: err.message }), 'error')
     }
   }, [refreshTemplateList, toast])
 
@@ -701,13 +705,13 @@ export default function App() {
     try {
       const result = await window.electronAPI.importTemplate()
       if (result.success) {
-        toast.showToast(`已导入模板「${result.name}」`, 'success')
+        toast.showToast(t('toast.templateImported', { name: result.name }), 'success')
         refreshTemplateList()
       } else if (!result.canceled) {
-        toast.showToast(`导入失败：${result.error || '未知错误'}`, 'error')
+        toast.showToast(t('toast.importTemplateFailed', { error: result.error || '未知错误' }), 'error')
       }
     } catch (err: any) {
-      toast.showToast(`导入模板失败：${err.message}`, 'error')
+      toast.showToast(t('toast.importTemplateError', { error: err.message }), 'error')
     }
   }, [refreshTemplateList, toast])
 
@@ -817,7 +821,7 @@ export default function App() {
 
         const freeU = findFreeUSlot(rackData.uHeight, targetUHeight, occupiedSlots)
         if (freeU < 0) {
-          toast.showToast('机柜空间不足，无法放入该设备', 'warning')
+          toast.showToast(t('toast.rackSpaceFull'), 'warning')
           return
         }
 
@@ -1409,7 +1413,7 @@ export default function App() {
       setEdges(loadedEdges)
       setIsDirty(true)
       history.clearHistory()
-      toast.showToast('已恢复未保存的拓扑图，请尽快保存 (Ctrl+S)', 'info')
+      toast.showToast(t('toast.recoveredAutoSave'), 'info')
     } catch (err) {
       console.error('[Auto-save] restore error:', err)
     }
@@ -1494,17 +1498,17 @@ export default function App() {
         e.preventDefault()
         const selected = nodesRef.current.filter(n => n.selected)
         if (selected.length < 2) {
-          toast.showToast('请至少选择 2 台设备进行分组', 'info')
+          toast.showToast(t('toast.needAtLeast2Devices'), 'info')
           return
         }
-        showPrompt('设备分组', `为选中的 ${selected.length} 台设备设置分组名称：`, '').then(groupName => {
+        showPrompt(t('toast.groupPromptTitle'), t('toast.groupPromptMessage', { count: selected.length }), '').then(groupName => {
           if (!groupName || !groupName.trim()) return
           history.pushSnapshot(nodesRef.current, edges)
           setNodes((nds) => nds.map(n =>
             n.selected ? { ...n, data: { ...n.data, groupName: groupName.trim() } } : n
           ))
           setIsDirty(true)
-          toast.showToast(`已创建分组「${groupName.trim()}」（${selected.length} 台设备）`, 'success')
+          toast.showToast(t('toast.groupCreated', { name: groupName.trim(), count: selected.length }), 'success')
         })
         return
       }
@@ -1519,7 +1523,7 @@ export default function App() {
           n.selected ? { ...n, data: { ...n.data, groupName: undefined } } : n
         ))
         setIsDirty(true)
-        toast.showToast(`已取消分组（${selected.length} 台设备）`, 'info')
+        toast.showToast(t('toast.ungroupedWithCount', { count: selected.length }), 'info')
         return
       }
 
@@ -1554,6 +1558,8 @@ export default function App() {
         isDirty={isDirty}
         theme={theme}
         onToggleTheme={toggleTheme}
+        language={language}
+        onToggleLanguage={toggleLanguage}
         onUndo={() => {
           const prev = history.undo()
           if (prev) {
@@ -1606,18 +1612,18 @@ export default function App() {
       <div className="h-6 bg-surface border-t border-border flex items-center justify-between px-3 text-2xs text-text-secondary select-none">
         <div className="flex items-center gap-3">
           <span>🔍 {Math.round(viewportZoom * 100)}%</span>
-          <span>📦 {nodes.length} 设备</span>
-          <span>🔗 {edges.length} 连线</span>
-          {selectedCount > 0 && <span className="text-accent">✓ 选中 {selectedCount}</span>}
+          <span>📦 {nodes.length} {t('statusBar.devices')}</span>
+          <span>🔗 {edges.length} {t('statusBar.connections')}</span>
+          {selectedCount > 0 && <span className="text-accent">✓ {t('statusBar.selected')} {selectedCount}</span>}
         </div>
         <div className="flex items-center gap-2">
-          <span>Ctrl+G 分组</span>
+          <span>Ctrl+G {t('statusBar.group')}</span>
           <span className="text-border">|</span>
-          <span>Ctrl+F 搜索</span>
+          <span>Ctrl+F {t('statusBar.search')}</span>
           <span className="text-border">|</span>
-          <span>Ctrl+C/V 复制粘贴</span>
+          <span>Ctrl+C/V {t('statusBar.copyPaste')}</span>
           <span className="text-border">|</span>
-          <span>Esc 取消选中</span>
+          <span>Esc {t('statusBar.deselect')}</span>
         </div>
       </div>
 
@@ -1695,8 +1701,8 @@ export default function App() {
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                 <div className="text-center text-text-secondary select-none">
                   <div className="text-4xl mb-3">📐</div>
-                  <p className="text-base mb-1">从左侧拖拽设备或机柜到此处开始绘制拓扑</p>
-                  <p className="text-sm">将设备拖入机柜即可自动装配 · 滚轮缩放 · 拖拽平移</p>
+                  <p className="text-base mb-1">{t('emptyState.hint')}</p>
+                  <p className="text-sm">{t('emptyState.subHint')}</p>
                 </div>
               </div>
             )}
@@ -1716,7 +1722,7 @@ export default function App() {
                       ref={searchInputRef}
                       type="text"
                       className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
-                      placeholder="搜索设备名称、型号、厂商..."
+                      placeholder={t('search.placeholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => {
@@ -1742,7 +1748,7 @@ export default function App() {
                     <div className="max-h-64 overflow-y-auto">
                       {searchResults.length === 0 ? (
                         <div className="px-3 py-4 text-center text-xs text-text-secondary">
-                          未找到匹配的设备
+                          {t('search.noMatch')}
                         </div>
                       ) : (
                         searchResults.map((node) => {
@@ -1754,7 +1760,7 @@ export default function App() {
                               onClick={() => handleSearchSelect(node.id)}
                             >
                               <div className="text-xs text-text-primary font-medium truncate">
-                                {data?.customName || data?.device?.model || '未命名设备'}
+                                {data?.customName || data?.device?.model || t('search.unnamedDevice')}
                               </div>
                               <div className="text-2xs text-text-secondary mt-0.5">
                                 {[data?.device?.vendor_name, data?.device?.category_name, data?.device?.model]
@@ -1768,7 +1774,7 @@ export default function App() {
                   )}
                   {!searchQuery.trim() && (
                     <div className="px-3 py-4 text-center text-xs text-text-secondary">
-                      输入关键词搜索画布上的设备
+                      {t('search.hint')}
                     </div>
                   )}
                 </div>
@@ -1839,17 +1845,16 @@ export default function App() {
       {/* ── Confirmation: Save before new ── */}
       <ConfirmDialog
         open={showNewConfirm}
-        title="是否保存当前拓扑？"
+        title={t('dialog.saveConfirmTitle')}
         message={
           <>
-            画布上现有 {nodes.length} 个设备和 {edges.length} 条连线。
-            如果不保存，所有修改将会丢失。
+            {t('dialog.saveConfirmMessage', { deviceCount: nodes.length, edgeCount: edges.length })}
           </>
         }
-        confirmLabel="保存"
-        discardLabel="不保存"
+        confirmLabel={t('common.save')}
+        discardLabel={t('dialog.dontSave')}
         onDiscard={handleNewDiscard}
-        cancelLabel="取消"
+        cancelLabel={t('common.cancel')}
         variant="warning"
         onConfirm={handleNewSave}
         onCancel={handleNewCancel}
@@ -1858,10 +1863,10 @@ export default function App() {
       {/* ── Confirmation: Save before open ── */}
       <ConfirmDialog
         open={showOpenConfirm}
-        title="是否保存当前拓扑？"
-        message="当前画布有未保存的修改。是否保存后再打开文件？"
-        confirmLabel="不保存，直接打开"
-        cancelLabel="取消"
+        title={t('dialog.saveConfirmTitle')}
+        message={t('dialog.saveBeforeOpenTitle')}
+        confirmLabel={t('dialog.openWithoutSave')}
+        cancelLabel={t('common.cancel')}
         variant="warning"
         onConfirm={doOpen}
         onCancel={() => setShowOpenConfirm(false)}
@@ -1870,10 +1875,10 @@ export default function App() {
       {/* ── Confirmation: Auto-save recovery ── */}
       <ConfirmDialog
         open={showAutoSaveRecover !== null}
-        title="恢复未保存的拓扑图？"
-        message="检测到上次未保存的拓扑图。是否恢复？（恢复后请尽快手动保存 Ctrl+S）"
-        confirmLabel="恢复"
-        cancelLabel="丢弃"
+        title={t('dialog.recoverTitle')}
+        message={t('dialog.recoverMessage')}
+        confirmLabel={t('dialog.recover')}
+        cancelLabel={t('dialog.discard')}
         variant="warning"
         onConfirm={handleAutoSaveRecover}
         onCancel={handleAutoSaveDismiss}

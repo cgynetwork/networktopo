@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { PathStyle } from '../types'
 
 export interface ContextMenuState {
@@ -50,6 +51,8 @@ export default function CanvasContextMenu({
   onAddDeviceToRack,
   isRackNode,
 }: CanvasContextMenuProps) {
+  const { t } = useTranslation()
+
   return (
     <>
       {/* Backdrop to close */}
@@ -65,28 +68,28 @@ export default function CanvasContextMenu({
         {contextMenu.type === 'edge' && (
           <>
             <div className="px-3 py-1.5 text-2xs text-text-secondary font-medium">
-              连接形式
+              {t('contextMenu.connectionForm')}
             </div>
             <button
               className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
               onClick={() => onEdgePathStyle('adaptive')}
             >
               <span className="w-4 text-center">↝</span>
-              <span>自适应连接</span>
+              <span>{t('contextMenu.pathAdaptive')}</span>
             </button>
             <button
               className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
               onClick={() => onEdgePathStyle('straight')}
             >
               <span className="w-4 text-center">→</span>
-              <span>直线连接</span>
+              <span>{t('contextMenu.pathStraight')}</span>
             </button>
             <button
               className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors flex items-center gap-2 text-text-primary"
               onClick={() => onEdgePathStyle('step')}
             >
               <span className="w-4 text-center">└</span>
-              <span>肘形连接线</span>
+              <span>{t('contextMenu.pathStep')}</span>
             </button>
             <div className="border-t border-border my-0.5" />
             <button
@@ -94,7 +97,7 @@ export default function CanvasContextMenu({
               onClick={onDeleteEdge}
             >
               <span>🗑️</span>
-              <span>删除线缆</span>
+              <span>{t('contextMenu.deleteCable')}</span>
             </button>
           </>
         )}
@@ -108,7 +111,7 @@ export default function CanvasContextMenu({
                   onClick={onAddDeviceToRack}
                 >
                   <span className="w-4 text-center">➕</span>
-                  <span>添加设备到机柜</span>
+                  <span>{t('contextMenu.addDeviceToRack')}</span>
                 </button>
                 <div className="border-t border-border my-0.5" />
               </>
@@ -118,7 +121,7 @@ export default function CanvasContextMenu({
               onClick={onCopyNode}
             >
               <span className="w-4 text-center">📋</span>
-              <span>复制设备</span>
+              <span>{t('contextMenu.copyDevice')}</span>
             </button>
             {hasGroupedNode && (
               <>
@@ -128,7 +131,7 @@ export default function CanvasContextMenu({
                   onClick={onUngroupNode}
                 >
                   <span className="w-4 text-center">🔓</span>
-                  <span>取消分组</span>
+                  <span>{t('contextMenu.ungroup')}</span>
                 </button>
               </>
             )}
@@ -138,7 +141,7 @@ export default function CanvasContextMenu({
               onClick={onDeleteNode}
             >
               <span>🗑️</span>
-              <span>删除设备及相关线缆</span>
+              <span>{t('contextMenu.deleteDevice')}</span>
             </button>
           </>
         )}
@@ -149,7 +152,7 @@ export default function CanvasContextMenu({
               onClick={onCopyBatch}
             >
               <span className="w-4 text-center">📋</span>
-              <span>复制选中设备</span>
+              <span>{t('contextMenu.copySelected')}</span>
             </button>
             {hasGroupedSelection && (
               <>
@@ -159,7 +162,7 @@ export default function CanvasContextMenu({
                   onClick={onUngroupBatch}
                 >
                   <span className="w-4 text-center">🔓</span>
-                  <span>取消分组</span>
+                  <span>{t('contextMenu.ungroup')}</span>
                 </button>
               </>
             )}
@@ -169,7 +172,7 @@ export default function CanvasContextMenu({
               onClick={onDeleteBatch}
             >
               <span>🗑️</span>
-              <span>删除选中设备及线缆</span>
+              <span>{t('contextMenu.deleteSelected')}</span>
             </button>
           </>
         )}
@@ -181,7 +184,7 @@ export default function CanvasContextMenu({
               disabled={!hasClipboard}
             >
               <span className="w-4 text-center">📋</span>
-              <span>粘贴设备</span>
+              <span>{t('contextMenu.paste')}</span>
               <span className="ml-auto text-2xs text-text-secondary">Ctrl+V</span>
             </button>
             <div className="border-t border-border my-0.5" />
@@ -190,7 +193,7 @@ export default function CanvasContextMenu({
               onClick={onSelectAll}
             >
               <span className="w-4 text-center">⬜</span>
-              <span>全选</span>
+              <span>{t('contextMenu.selectAll')}</span>
               <span className="ml-auto text-2xs text-text-secondary">Ctrl+A</span>
             </button>
             <button
@@ -198,7 +201,7 @@ export default function CanvasContextMenu({
               onClick={onFitView}
             >
               <span className="w-4 text-center">🔍</span>
-              <span>适应视窗</span>
+              <span>{t('contextMenu.fitView')}</span>
               <span className="ml-auto text-2xs text-text-secondary">Ctrl+0</span>
             </button>
           </>

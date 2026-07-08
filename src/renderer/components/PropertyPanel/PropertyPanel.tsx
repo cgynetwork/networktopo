@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Node, Edge } from '@xyflow/react'
 import type { DeviceNodeData } from '../nodes/DeviceNode'
 import type { EdgeData, PathStyle, RackNodeData, RackDeviceNodeData, RackViewMode } from '../../types'
@@ -27,6 +28,7 @@ export default function PropertyPanel({
   onUpdateNodeData,
   onUpdateEdgeData,
 }: PropertyPanelProps) {
+  const { t } = useTranslation()
   const nodeData = selectedNode?.data as unknown as DeviceNodeData | undefined
   const edgeData = (selectedEdge?.data || {}) as EdgeData
   const [customName, setCustomName] = useState('')
@@ -60,7 +62,7 @@ export default function PropertyPanel({
   const [customImage, setCustomImage] = useState('')
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
-  // V1.5.0: 互联网应用多图业务图片
+  // V1.5.0: App business images (multi-image)
   const [appImages, setAppImages] = useState<Array<{ id: string; dataUrl: string; offsetX: number; offsetY: number; scale: number }>>([])
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [elbowOffset, setElbowOffset] = useState(50)
@@ -147,7 +149,7 @@ export default function PropertyPanel({
       setPortZeroBased(nodeData.portZeroBased ?? false)
       setPortInterleaved(nodeData.portInterleaved ?? false)
       setBusinessNote(nodeData.businessNote || '')
-      // V1.5.0: 互联网应用多图业务图片
+      // V1.5.0: App business images (multi-image)
       setAppImages(nodeData.appImages || [])
       setSelectedImageId(null)
     }
@@ -215,7 +217,7 @@ export default function PropertyPanel({
     onUpdateNodeData?.(selectedNode.id, { customImage: undefined })
   }, [selectedNode, onUpdateNodeData])
 
-  // V1.5.0: 互联网应用多图业务图片 — 添加/移除/缩放
+  // V1.5.0: App business images — add / remove / scale
   const handleAddAppImage = useCallback(async () => {
     if (!selectedNode) return
     const result = await window.electronAPI.pickAppImage()
@@ -340,11 +342,11 @@ export default function PropertyPanel({
       return (
         <div className="h-full bg-panel border-l border-border flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h3 className="text-sm font-semibold text-text-primary">多选模式</h3>
+            <h3 className="text-sm font-semibold text-text-primary">{t('propertyPanel.multiSelect')}</h3>
             <button
               onClick={onClose}
               className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary text-xs"
-              title="关闭面板"
+              title={t('propertyPanel.closePanel')}
             >
               ✕
             </button>
@@ -352,13 +354,13 @@ export default function PropertyPanel({
           <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
             <div className="text-center space-y-3">
               <div className="text-4xl font-bold text-select-border">{selectedCount}</div>
-              <p className="text-xs text-text-secondary">个设备已选中</p>
+              <p className="text-xs text-text-secondary">{t('propertyPanel.devicesSelected', { count: selectedCount })}</p>
               <div className="border-t border-border pt-3 mt-3">
                 <p className="text-2xs text-text-secondary">
-                  按 <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-2xs font-mono">Esc</kbd> 取消全部选中
+                  {t('propertyPanel.pressEsc')}
                 </p>
                 <p className="text-2xs text-text-secondary mt-1.5">
-                  使用工具栏对齐 / 分布按钮调整设备布局
+                  {t('propertyPanel.alignHint')}
                 </p>
               </div>
             </div>
@@ -369,7 +371,7 @@ export default function PropertyPanel({
 
     return (
       <div className="h-full bg-panel border-l border-border p-4">
-        <p className="text-xs text-text-secondary">未选中任何元素</p>
+        <p className="text-xs text-text-secondary">{t('propertyPanel.noSelection')}</p>
       </div>
     )
   }
@@ -379,12 +381,12 @@ export default function PropertyPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="text-sm font-semibold text-text-primary">
-          {selectedNode ? (isRackNode ? '机柜属性' : '设备属性') : '连线属性'}
+          {selectedNode ? (isRackNode ? t('propertyPanel.rackProps') : t('propertyPanel.deviceProps')) : t('propertyPanel.edgeProps')}
         </h3>
         <button
           onClick={onClose}
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary text-xs"
-          title="关闭面板"
+          title={t('propertyPanel.closePanel')}
         >
           ✕
         </button>
@@ -400,13 +402,13 @@ export default function PropertyPanel({
               <span className="text-lg">🗄️</span>
               <div>
                 <div className="text-sm font-semibold text-text-primary">{rackData.label}</div>
-                <div className="text-xs text-text-secondary">{rackData.uHeight}U 网络机柜</div>
+                <div className="text-xs text-text-secondary">{t('propertyPanel.rackLabel', { u: rackData.uHeight })}</div>
               </div>
             </div>
 
             {/* Rack name */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">机柜名称</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.rackName')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -414,14 +416,14 @@ export default function PropertyPanel({
                 onChange={(e) => {
                   onUpdateNodeData?.(selectedNode.id, { label: e.target.value })
                 }}
-                placeholder="机柜名称"
+                placeholder={t('propertyPanel.rackName')}
               />
             </div>
 
             {/* U statistics */}
             {rackStats && (
               <div>
-                <label className="block text-xs text-text-secondary mb-1">U 位使用情况</label>
+                <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.uUsage')}</label>
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-3 bg-hover-bg rounded-full overflow-hidden">
@@ -435,8 +437,8 @@ export default function PropertyPanel({
                     </span>
                   </div>
                   <div className="flex justify-between text-2xs text-text-secondary">
-                    <span>已用: {rackStats.usedU}U</span>
-                    <span>空闲: {rackStats.freeU}U</span>
+                    <span>{t('propertyPanel.usedSpace', { u: rackStats.usedU })}</span>
+                    <span>{t('propertyPanel.freeSpace', { u: rackStats.freeU })}</span>
                   </div>
                 </div>
               </div>
@@ -447,10 +449,10 @@ export default function PropertyPanel({
               <div className="p-3 bg-select-bg/30 border border-dashed border-select-border rounded text-center space-y-2">
                 <div className="text-2xl">📥</div>
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  从左侧设备列表拖拽设备至机柜内
+                  {t('propertyPanel.dragDeviceHint')}
                 </p>
                 <p className="text-2xs text-text-secondary">
-                  或右键单击机柜 → 选择「添加设备到机柜」
+                  {t('propertyPanel.rightClickHint')}
                 </p>
               </div>
             )}
@@ -458,7 +460,7 @@ export default function PropertyPanel({
             {/* View mode toggle */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                👁️ 视图模式
+                👁️ {t('propertyPanel.viewMode')}
               </label>
               <div className="flex gap-2">
                 <button
@@ -469,7 +471,7 @@ export default function PropertyPanel({
                   }`}
                   onClick={() => onUpdateNodeData?.(selectedNode.id, { viewMode: 'front' as RackViewMode })}
                 >
-                  🔲 机柜正面
+                  🔲 {t('propertyPanel.rackFront')}
                 </button>
                 <button
                   className={`flex-1 h-8 text-xs rounded border transition-colors ${
@@ -479,28 +481,28 @@ export default function PropertyPanel({
                   }`}
                   onClick={() => onUpdateNodeData?.(selectedNode.id, { viewMode: 'back' as RackViewMode })}
                 >
-                  🔌 机柜背面
+                  🔌 {t('propertyPanel.rackBack')}
                 </button>
               </div>
               <p className="text-2xs text-text-secondary mt-1.5">
-                双击机柜也可切换视图模式
+                {t('propertyPanel.doubleClickHint')}
               </p>
             </div>
 
             {/* Rack info */}
             <div className="border-t border-border pt-3">
-              <label className="block text-xs font-semibold text-text-primary mb-2">📐 机柜信息</label>
+              <label className="block text-xs font-semibold text-text-primary mb-2">📐 {t('propertyPanel.rackInfo')}</label>
               <div className="space-y-1 text-xs text-text-secondary">
                 <div className="flex justify-between">
-                  <span>总高度</span>
+                  <span>{t('propertyPanel.totalHeight')}</span>
                   <span className="font-mono">{rackData.uHeight}U ({rackData.uHeight * U_PX_HEIGHT}px)</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>正面宽度</span>
+                  <span>{t('propertyPanel.frontWidth')}</span>
                   <span className="font-mono">{getRackNodeWidth('front')}px</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>背面宽度</span>
+                  <span>{t('propertyPanel.backWidth')}</span>
                   <span className="font-mono">{getRackNodeWidth('back')}px</span>
                 </div>
               </div>
@@ -524,13 +526,13 @@ export default function PropertyPanel({
             {/* U Position + U Height summary */}
             <div className="flex gap-2">
               <div className="flex-1 p-2 bg-hover-bg rounded text-center">
-                <div className="text-2xs text-text-secondary">所在 U 位</div>
+                <div className="text-2xs text-text-secondary">{t('propertyPanel.uPosition')}</div>
                 <div className="text-sm font-bold text-select-border font-mono">
                   U{rackDeviceData.uPosition ?? '?'}
                 </div>
               </div>
               <div className="flex-1 p-2 bg-hover-bg rounded text-center">
-                <div className="text-2xs text-text-secondary">占用高度</div>
+                <div className="text-2xs text-text-secondary">{t('propertyPanel.uHeight')}</div>
                 <div className="text-sm font-bold text-text-primary font-mono">
                   {rackDeviceData.uHeight || 1}U
                 </div>
@@ -539,7 +541,7 @@ export default function PropertyPanel({
 
             {/* U Height adjustment */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">U 位高度</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.uHeightLabel')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="range"
@@ -562,7 +564,7 @@ export default function PropertyPanel({
             {/* Power supply count (V1.1.2) */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🔌 电源模块数量
+                🔌 {t('propertyPanel.psuCount')}
               </label>
               <div className="flex items-center gap-2">
                 <button
@@ -598,13 +600,13 @@ export default function PropertyPanel({
                 </button>
               </div>
               <p className="text-2xs text-text-secondary mt-1.5">
-                设备背面的电源模块数量（0-4 个）
+                {t('propertyPanel.psuHint')}
               </p>
             </div>
 
             {/* Device color */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">节点颜色</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.nodeColor')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -616,7 +618,7 @@ export default function PropertyPanel({
                   className="w-8 h-8 rounded border border-border cursor-pointer p-0.5"
                 />
                 <span className="text-2xs text-text-secondary">
-                  {customColor ? customColor : '默认（按设备类型）'}
+                  {customColor ? customColor : t('propertyPanel.defaultByType')}
                 </span>
                 {customColor && (
                   <button
@@ -626,7 +628,7 @@ export default function PropertyPanel({
                       onUpdateNodeData?.(selectedNode.id, { customColor: undefined })
                     }}
                   >
-                    重置
+                    {t('propertyPanel.resetColor')}
                   </button>
                 )}
               </div>
@@ -634,7 +636,7 @@ export default function PropertyPanel({
 
             {/* Device name */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">设备名称</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.deviceName')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -648,7 +650,7 @@ export default function PropertyPanel({
 
             {/* Device model */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">设备型号</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.deviceModel')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -662,13 +664,13 @@ export default function PropertyPanel({
 
             {/* Description */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">描述</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.description')}</label>
               <textarea
                 className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={handleDescChange}
-                placeholder="设备描述..."
+                placeholder={t('propertyPanel.descriptionPlaceholder')}
               />
             </div>
           </div>
@@ -687,9 +689,9 @@ export default function PropertyPanel({
               </span>
             </div>
 
-            {/* 节点底纹颜色 */}
+            {/* Node color */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">节点颜色</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.nodeColor')}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -701,7 +703,7 @@ export default function PropertyPanel({
                   className="w-8 h-8 rounded border border-border cursor-pointer p-0.5"
                 />
                 <span className="text-2xs text-text-secondary">
-                  {customColor ? customColor : '默认（按设备类型）'}
+                  {customColor ? customColor : t('propertyPanel.defaultByType')}
                 </span>
                 {customColor && (
                   <button
@@ -711,15 +713,15 @@ export default function PropertyPanel({
                       onUpdateNodeData?.(selectedNode.id, { customColor: undefined })
                     }}
                   >
-                    重置
+                    {t('propertyPanel.resetColor')}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* 设备功能 */}
+            {/* Device function */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">设备功能</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.deviceFunction')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -731,9 +733,9 @@ export default function PropertyPanel({
               />
             </div>
 
-            {/* 设备厂商 */}
+            {/* Device vendor */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">设备厂商</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.deviceVendor')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -745,9 +747,9 @@ export default function PropertyPanel({
               />
             </div>
 
-            {/* 设备名称 */}
+            {/* Device name */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">设备名称</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.deviceName')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -759,9 +761,9 @@ export default function PropertyPanel({
               />
             </div>
 
-            {/* 设备型号 */}
+            {/* Device model */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">设备型号</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.deviceModel')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -773,15 +775,15 @@ export default function PropertyPanel({
               />
             </div>
 
-            {/* 设备端口 — V0.7.1 modular editing */}
+            {/* Device ports — V0.7.1 modular editing */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🔌 设备端口
+                🔌 {t('propertyPanel.devicePorts')}
               </label>
               <div className="space-y-2">
-                {/* 网络端口数量 */}
+                {/* Network port count */}
                 <div>
-                  <label className="block text-2xs text-text-secondary mb-1">网络端口数量</label>
+                  <label className="block text-2xs text-text-secondary mb-1">{t('propertyPanel.networkPortCount')}</label>
                   <input
                     type="number"
                     min="0"
@@ -793,9 +795,9 @@ export default function PropertyPanel({
                     onKeyDown={(e) => { if (e.key === 'Enter') handlePortCountsChange() }}
                   />
                 </div>
-                {/* 千兆光纤端口数量 */}
+                {/* Gigabit fiber port count */}
                 <div>
-                  <label className="block text-2xs text-text-secondary mb-1">千兆光纤端口数量</label>
+                  <label className="block text-2xs text-text-secondary mb-1">{t('propertyPanel.gigabitFiberCount')}</label>
                   <input
                     type="number"
                     min="0"
@@ -807,9 +809,9 @@ export default function PropertyPanel({
                     onKeyDown={(e) => { if (e.key === 'Enter') handlePortCountsChange() }}
                   />
                 </div>
-                {/* 万兆光纤端口数量 */}
+                {/* 10G fiber port count */}
                 <div>
-                  <label className="block text-2xs text-text-secondary mb-1">万兆光纤端口数量</label>
+                  <label className="block text-2xs text-text-secondary mb-1">{t('propertyPanel.tenGigabitFiberCount')}</label>
                   <input
                     type="number"
                     min="0"
@@ -824,18 +826,18 @@ export default function PropertyPanel({
               </div>
               {/* Live preview of composed ports_info */}
               <p className="text-2xs text-text-secondary mt-1.5">
-                端口描述：{composePortsInfo(customPortsRJ45, customPortsSFP, customPortsSFP28) || '（未设置）'}
+                {t('propertyPanel.portDescriptionLabel', { text: composePortsInfo(customPortsRJ45, customPortsSFP, customPortsSFP28) || t('propertyPanel.portDescriptionNone') })}
               </p>
             </div>
 
             {/* ── V0.9.0: Device Stacking Toggle ── */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🔗 堆叠模式
+                🔗 {t('propertyPanel.stackMode')}
               </label>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-text-secondary">
-                  启用设备堆叠
+                  {t('propertyPanel.enableStack')}
                 </span>
                 <button
                   type="button"
@@ -860,7 +862,7 @@ export default function PropertyPanel({
               </div>
               {isStacked && (
                 <p className="text-2xs text-text-secondary mt-1.5">
-                  STACK 端口已显示在设备底部，可连接至另一台堆叠设备
+                  {t('propertyPanel.stackHint')}
                 </p>
               )}
             </div>
@@ -869,11 +871,11 @@ export default function PropertyPanel({
             {nodeData?.device?.category_name === 'SDWAN' && nodeData?.device?.ports_info && (
               <div className="border-t border-border pt-3">
                 <label className="block text-xs font-semibold text-text-primary mb-2">
-                  🔷 隧道端口
+                  🔷 {t('propertyPanel.tunnelPorts')}
                 </label>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-text-secondary">
-                    启用 SDWAN 隧道互联
+                    {t('propertyPanel.enableTunnel')}
                   </span>
                   <button
                     type="button"
@@ -899,7 +901,7 @@ export default function PropertyPanel({
                 {hasTunnelPorts && (
                   <div className="mt-2 space-y-2">
                     <div>
-                      <label className="block text-2xs text-text-secondary mb-1">隧道端口数量</label>
+                      <label className="block text-2xs text-text-secondary mb-1">{t('propertyPanel.tunnelPortCount')}</label>
                       <div className="flex items-center gap-1.5">
                         <button
                           className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-primary text-xs"
@@ -932,7 +934,7 @@ export default function PropertyPanel({
                       </div>
                     </div>
                     <p className="text-2xs text-text-secondary">
-                      TUNNEL-1 ~ TUNNEL-{tunnelPortCount} 端口已显示在设备底部，可连接至 SDWAN Node 形成专用互联
+                      {t('propertyPanel.tunnelPortHint', { count: tunnelPortCount })}
                     </p>
                   </div>
                 )}
@@ -942,13 +944,13 @@ export default function PropertyPanel({
             {/* ── V0.9.1: Port numbering options ── */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🔢 端口编号规则
+                🔢 {t('propertyPanel.portNumbering')}
               </label>
 
-              {/* 零基编号 toggle */}
+              {/* Zero-based toggle */}
               <div className="flex items-center justify-between mb-2.5">
                 <span className="text-xs text-text-secondary">
-                  从 GE0 开始编号
+                  {t('propertyPanel.startFromGE0')}
                 </span>
                 <button
                   type="button"
@@ -973,14 +975,14 @@ export default function PropertyPanel({
               </div>
               {portZeroBased && (
                 <p className="text-2xs text-text-secondary -mt-1.5 mb-2">
-                  端口将从 GE0、SFP0... 开始编号
+                  {t('propertyPanel.portNumberingHint')}
                 </p>
               )}
 
-              {/* 端口对调 (interleaved) toggle */}
+              {/* Port interleave toggle */}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-text-secondary">
-                  端口对调（列优先交错）
+                  {t('propertyPanel.portInterleave')}
                 </span>
                 <button
                   type="button"
@@ -1005,15 +1007,15 @@ export default function PropertyPanel({
               </div>
               {portInterleaved && (
                 <p className="text-2xs text-text-secondary mt-1.5">
-                  多行端口按列交错编号，避免上行/下行端口号混淆
+                  {t('propertyPanel.portInterleaveHint')}
                 </p>
               )}
             </div>
 
-            {/* 设备真机 — V0.7.0 */}
+            {/* Device photo — V0.7.0 */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🖼️ 设备真机
+                🖼️ {t('propertyPanel.devicePhoto')}
               </label>
 
               {/* Image preview */}
@@ -1027,12 +1029,12 @@ export default function PropertyPanel({
                 {imageLoading ? (
                   <div className="flex flex-col items-center gap-1 text-text-secondary">
                     <div className="w-5 h-5 border-2 border-select-border border-t-transparent rounded-full animate-spin" />
-                    <span className="text-2xs">加载中...</span>
+                    <span className="text-2xs">{t('propertyPanel.photoLoading')}</span>
                   </div>
                 ) : imagePreviewUrl ? (
                   <img
                     src={imagePreviewUrl}
-                    alt="设备图片预览"
+                    alt={t('propertyPanel.photoPreviewAlt')}
                     className="w-full h-full object-contain"
                   />
                 ) : (
@@ -1042,7 +1044,7 @@ export default function PropertyPanel({
                       <circle cx="8.5" cy="8.5" r="1.5" />
                       <path d="M21 15l-5-5L5 21" />
                     </svg>
-                    <span className="text-2xs">点击上传设备实拍图</span>
+                    <span className="text-2xs">{t('propertyPanel.photoClickToUpload')}</span>
                   </div>
                 )}
               </div>
@@ -1053,28 +1055,28 @@ export default function PropertyPanel({
                   className="flex-1 h-7 text-xs rounded border border-select-border text-select-border hover:bg-select-bg transition-colors"
                   onClick={handleUploadImage}
                 >
-                  {customImage ? '更换图片' : '上传图片'}
+                  {customImage ? t('propertyPanel.changePhoto') : t('propertyPanel.uploadPhoto')}
                 </button>
                 {customImage && (
                   <button
                     className="h-7 px-3 text-xs rounded border border-danger text-danger hover:bg-danger-bg transition-colors"
                     onClick={handleRemoveImage}
                   >
-                    移除
+                    {t('propertyPanel.removePhoto')}
                   </button>
                 )}
               </div>
-              <p className="text-2xs text-text-secondary mt-1.5">支持 PNG / JPG / WebP 格式</p>
+              <p className="text-2xs text-text-secondary mt-1.5">{t('propertyPanel.photoFormatHint')}</p>
             </div>
 
-            {/* V1.5.0: 互联网应用多图业务图片 — only for 互联网应用 device */}
+            {/* V1.5.0: App business images — only for 互联网应用 device */}
             {nodeData?.device?.model === '互联网应用' && (
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🖼️ 业务图片
+                🖼️ {t('propertyPanel.businessImages')}
                 {appImages.length > 0 && (
                   <span className="ml-1 text-2xs text-text-secondary font-normal">
-                    (已上传 {appImages.length} 张)
+                    {t('propertyPanel.businessImagesCount', { count: appImages.length })}
                   </span>
                 )}
               </label>
@@ -1092,11 +1094,11 @@ export default function PropertyPanel({
                       }`}
                       style={{ backgroundColor: 'var(--color-device-image-bg)' }}
                       onClick={() => setSelectedImageId(selectedImageId === img.id ? null : img.id)}
-                      title={`图片 ${idx + 1}`}
+                      title={t('propertyPanel.businessImageLabel', { n: idx + 1 })}
                     >
                       <img
                         src={img.dataUrl}
-                        alt={`业务图片 ${idx + 1}`}
+                        alt={t('propertyPanel.businessImageLabel', { n: idx + 1 })}
                         className="w-full h-full object-contain"
                       />
                       {/* Remove button */}
@@ -1106,7 +1108,7 @@ export default function PropertyPanel({
                           e.stopPropagation()
                           handleRemoveAppImage(img.id)
                         }}
-                        title="移除此图片"
+                        title={t('propertyPanel.removePhoto')}
                       >
                         ×
                       </button>
@@ -1120,7 +1122,7 @@ export default function PropertyPanel({
                 className="w-full h-7 text-xs rounded border border-dashed border-select-border/50 text-select-border hover:bg-select-bg transition-colors mb-2"
                 onClick={handleAddAppImage}
               >
-                + 添加图片
+                {t('propertyPanel.addImage')}
               </button>
 
               {/* Selected image scale control */}
@@ -1131,17 +1133,17 @@ export default function PropertyPanel({
                 return (
                   <div className="p-2 bg-hover-bg rounded space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary">图片 {imgIdx}</span>
+                      <span className="text-xs text-text-secondary">{t('propertyPanel.businessImageLabel', { n: imgIdx })}</span>
                       <button
                         className="text-2xs text-danger hover:opacity-70 transition-colors"
                         onClick={() => handleRemoveAppImage(selectedImageId)}
                       >
-                        移除
+                        {t('propertyPanel.removePhoto')}
                       </button>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-2xs text-text-secondary">缩放</label>
+                        <label className="text-2xs text-text-secondary">{t('propertyPanel.zoom')}</label>
                         <span className="text-2xs text-select-border font-mono">
                           {Math.round(selectedImg.scale * 100)}%
                         </span>
@@ -1166,13 +1168,13 @@ export default function PropertyPanel({
                 )
               })()}
 
-              <p className="text-2xs text-text-secondary mt-1.5">支持 SVG / PNG / BMP / JPG / WebP，每张最大 512KB。图片可在画布上自由拖拽与缩放</p>
+              <p className="text-2xs text-text-secondary mt-1.5">{t('propertyPanel.imageFormatHint')}</p>
             </div>
             )}
 
             {/* IP Address */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">IP 地址</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.ipAddress')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -1186,32 +1188,32 @@ export default function PropertyPanel({
 
             {/* Description */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">描述</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.description')}</label>
               <textarea
                 className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={handleDescChange}
-                placeholder="设备描述..."
+                placeholder={t('propertyPanel.descriptionPlaceholder')}
               />
             </div>
 
             {/* V0.9.3: Business description note — shown on 3-second device hover */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">业务描述</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.businessDescription')}</label>
               <textarea
                 className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
                 value={businessNote}
                 onChange={(e) => setBusinessNote(e.target.value)}
                 onBlur={handleBusinessNoteChange}
-                placeholder="管理IP、上联接口模式、业务接口规划、下联VLAN信息..."
+                placeholder={t('propertyPanel.businessDescriptionPlaceholder')}
               />
             </div>
 
             {/* Device description from database (editable) */}
             {nodeData.device.description !== undefined && (
               <div>
-                <label className="block text-xs text-text-secondary mb-1">设备说明（数据库）</label>
+                <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.dbDescription')}</label>
                 <textarea
                   className="w-full h-20 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
                   value={dbDescription}
@@ -1229,7 +1231,7 @@ export default function PropertyPanel({
                       ;(e.target as HTMLTextAreaElement).blur()
                     }
                   }}
-                  placeholder="数据库中的设备说明..."
+                  placeholder={t('propertyPanel.dbDescriptionPlaceholder')}
                 />
               </div>
             )}
@@ -1239,7 +1241,7 @@ export default function PropertyPanel({
         {selectedEdge && (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-text-secondary mb-1">连接类型</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.connectionType')}</label>
               <select
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={connType}
@@ -1249,15 +1251,15 @@ export default function PropertyPanel({
                   onUpdateEdgeData?.(selectedEdge.id, { connectionType: val })
                 }}
               >
-                <option value="ethernet">网线 (实线)</option>
-                <option value="fiber">光纤 (虚线)</option>
-                <option value="stack">堆叠线缆 (粗实线)</option>
-                <option value="tunnel">隧道线缆 (SDWAN)</option>
-                <option value="wireless">无线 (信号波)</option>
+                <option value="ethernet">{t('propertyPanel.connEthernet')}</option>
+                <option value="fiber">{t('propertyPanel.connFiber')}</option>
+                <option value="stack">{t('propertyPanel.connStack')}</option>
+                <option value="tunnel">{t('propertyPanel.connTunnel')}</option>
+                <option value="wireless">{t('propertyPanel.connWireless')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">连接形式</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.connectionForm')}</label>
               <select
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={pathStyle}
@@ -1288,17 +1290,17 @@ export default function PropertyPanel({
                   }
                 }}
               >
-                <option value="adaptive">自适应连接</option>
-                <option value="straight">直线连接</option>
-                <option value="step">肘形连接线</option>
+                <option value="adaptive">{t('propertyPanel.pathAdaptive')}</option>
+                <option value="straight">{t('propertyPanel.pathStraight')}</option>
+                <option value="step">{t('propertyPanel.pathStep')}</option>
               </select>
             </div>
 
-            {/* 肘形偏移量 — only visible when pathStyle is step */}
+            {/* Elbow offset — only visible when pathStyle is step */}
             {pathStyle === 'step' && (
               <div className="mb-3 p-2 bg-select-bg/50 rounded border border-select-border/30">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">肘形高度</label>
+                  <label className="text-xs text-text-secondary">{t('propertyPanel.elbowHeight')}</label>
                   <span className="text-2xs text-select-border bg-select-bg px-1.5 py-0.5 rounded font-mono">{elbowOffset}px</span>
                 </div>
                 <input
@@ -1315,7 +1317,7 @@ export default function PropertyPanel({
                   className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
-                  <span>近(10px)</span><span>远(400px)</span>
+                  <span>{t('propertyPanel.elbowNear')}</span><span>{t('propertyPanel.elbowFar')}</span>
                 </div>
                 {elbowOffset !== 50 && (
                   <button
@@ -1325,19 +1327,19 @@ export default function PropertyPanel({
                       onUpdateEdgeData?.(selectedEdge.id, { elbowOffset: undefined })
                     }}
                   >
-                    重置为默认值
+                    {t('propertyPanel.resetToDefault')}
                   </button>
                 )}
               </div>
             )}
 
-            {/* 肘形左右偏移量 — only visible when pathStyle is step */}
+            {/* Elbow horizontal offset — only visible when pathStyle is step */}
             {pathStyle === 'step' && (
               <div className="mb-3 p-2 bg-select-bg/50 rounded border border-select-border/30">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">肘形左右</label>
+                  <label className="text-xs text-text-secondary">{t('propertyPanel.elbowSide')}</label>
                   <span className="text-2xs text-select-border bg-select-bg px-1.5 py-0.5 rounded font-mono">
-                    {elbowHorizontalOffset > 0 ? `→ ${elbowHorizontalOffset}px` : elbowHorizontalOffset < 0 ? `← ${Math.abs(elbowHorizontalOffset)}px` : '居中'}
+                    {elbowHorizontalOffset > 0 ? `→ ${elbowHorizontalOffset}px` : elbowHorizontalOffset < 0 ? `← ${Math.abs(elbowHorizontalOffset)}px` : t('propertyPanel.centered')}
                   </span>
                 </div>
                 <input
@@ -1354,7 +1356,7 @@ export default function PropertyPanel({
                   className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
-                  <span>← 左(-200px)</span><span>右(200px) →</span>
+                  <span>{t('propertyPanel.elbowLeft')}</span><span>{t('propertyPanel.elbowRight')}</span>
                 </div>
                 {elbowHorizontalOffset !== 0 && (
                   <button
@@ -1364,14 +1366,14 @@ export default function PropertyPanel({
                       onUpdateEdgeData?.(selectedEdge.id, { elbowHorizontalOffset: undefined })
                     }}
                   >
-                    重置为居中
+                    {t('propertyPanel.resetToCenter')}
                   </button>
                 )}
               </div>
             )}
 
             <div>
-              <label className="block text-xs text-text-secondary mb-1">显示状态</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.displayState')}</label>
               <select
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
                 value={animStyle}
@@ -1381,14 +1383,14 @@ export default function PropertyPanel({
                   onUpdateEdgeData?.(selectedEdge.id, { animationStyle: val })
                 }}
               >
-                <option value="none">静态</option>
-                <option value="particle">动态 — 粒子流动</option>
-                <option value="glow">动态 — 光带流动</option>
-                <option value="wave">动态 — 信号波纹</option>
+                <option value="none">{t('propertyPanel.animStatic')}</option>
+                <option value="particle">{t('propertyPanel.animParticle')}</option>
+                <option value="glow">{t('propertyPanel.animGlow')}</option>
+                <option value="wave">{t('propertyPanel.animWave')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">方向</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.direction')}</label>
               <div className="flex gap-2">
                 <button
                   className={`flex-1 h-8 text-xs rounded border transition-colors ${
@@ -1401,7 +1403,7 @@ export default function PropertyPanel({
                     onUpdateEdgeData?.(selectedEdge.id, { direction: 'forward' })
                   }}
                 >
-                  正向 →
+                  {t('propertyPanel.dirForward')}
                 </button>
                 <button
                   className={`flex-1 h-8 text-xs rounded border transition-colors ${
@@ -1414,21 +1416,21 @@ export default function PropertyPanel({
                     onUpdateEdgeData?.(selectedEdge.id, { direction: 'reverse' })
                   }}
                 >
-                  反向 ←
+                  {t('propertyPanel.dirBackward')}
                 </button>
               </div>
             </div>
 
-            {/* ── V0.2.1: 自定义线缆外观 ── */}
+            {/* ── V0.2.1: Cable appearance ── */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🎨 线缆外观
+                🎨 {t('propertyPanel.cableAppearance')}
               </label>
 
-              {/* 线缆粗细 */}
+              {/* Stroke width */}
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">线缆粗细</label>
+                  <label className="text-xs text-text-secondary">{t('propertyPanel.cableThickness')}</label>
                   <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">{strokeWidth.toFixed(1)}px</span>
                 </div>
                 <input
@@ -1449,10 +1451,10 @@ export default function PropertyPanel({
                 </div>
               </div>
 
-              {/* 线缆颜色 */}
+              {/* Stroke color */}
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">线缆颜色</label>
+                  <label className="text-xs text-text-secondary">{t('propertyPanel.cableColor')}</label>
                   {strokeColor && (
                     <button
                       className="text-2xs text-danger hover:opacity-70 transition-colors"
@@ -1461,7 +1463,7 @@ export default function PropertyPanel({
                         onUpdateEdgeData?.(selectedEdge.id, { strokeColor: '' })
                       }}
                     >
-                      重置
+                      {t('propertyPanel.resetColor')}
                     </button>
                   )}
                 </div>
@@ -1476,21 +1478,21 @@ export default function PropertyPanel({
                     className="w-8 h-8 rounded border border-border cursor-pointer p-0.5"
                   />
                   <span className="text-2xs text-text-secondary">
-                    {strokeColor ? strokeColor : connType === 'fiber' ? '光纤默认 (橙色)' : '网线默认 (黑色)'}
+                    {strokeColor ? strokeColor : connType === 'fiber' ? t('propertyPanel.fiberDefault') : t('propertyPanel.ethernetDefault')}
                   </span>
                 </div>
               </div>
 
-              {/* 动画速度 */}
+              {/* Animation speed */}
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">动画速度</label>
+                  <label className="text-xs text-text-secondary">{t('propertyPanel.animationSpeed')}</label>
                   <span className={`text-2xs px-1.5 py-0.5 rounded ${
                     animSpeed <= 0.75 ? 'bg-danger-bg text-danger' :
                     animSpeed >= 3 ? 'bg-select-bg text-select-border' :
                     'bg-hover-bg text-text-secondary'
                   }`}>
-                    {animSpeed <= 0.75 ? '快速' : animSpeed >= 3 ? '慢速' : '正常'}
+                    {animSpeed <= 0.75 ? t('propertyPanel.fast') : animSpeed >= 3 ? t('propertyPanel.slow') : t('propertyPanel.normal')}
                   </span>
                 </div>
                 <input
@@ -1507,15 +1509,15 @@ export default function PropertyPanel({
                   className="w-full h-1.5 accent-select-border cursor-pointer"
                 />
                 <div className="flex justify-between text-2xs text-text-secondary mt-0.5">
-                  <span>快 ←</span><span>→ 慢</span>
+                  <span>{t('propertyPanel.fastLeft')}</span><span>{t('propertyPanel.slowRight')}</span>
                 </div>
               </div>
 
-              {/* 粒子大小 — only when particle animation is active */}
+              {/* Particle size — only when particle animation is active */}
               {animStyle === 'particle' && (
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-text-secondary">粒子大小</label>
+                    <label className="text-xs text-text-secondary">{t('propertyPanel.particleSize')}</label>
                     <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">{particleSize.toFixed(1)}px</span>
                   </div>
                   <input
@@ -1537,10 +1539,10 @@ export default function PropertyPanel({
                 </div>
               )}
 
-              {/* 特效颜色 */}
+              {/* Effect color */}
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">特效颜色</label>
+                  <label className="text-xs text-text-secondary">{t('propertyPanel.effectColor')}</label>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1562,23 +1564,23 @@ export default function PropertyPanel({
                       onUpdateEdgeData?.(selectedEdge.id, { effectColor: '#2196F3' })
                     }}
                   >
-                    默认
+                    {t('propertyPanel.default')}
                   </button>
                 </div>
               </div>
             </div>
 
             <div className="border-t border-border pt-1" />
-            {/* ── 本端端口号 ── */}
+            {/* ── Source port ── */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-text-secondary">本端端口号</label>
+                <label className="text-xs text-text-secondary">{t('propertyPanel.localPort')}</label>
                 <button
                   className="text-2xs text-select-border hover:opacity-80 transition-colors"
                   onClick={handleAutoSourcePort}
-                  title="根据设备端口信息自动填充"
+                  title={t('propertyPanel.autoFillHint')}
                 >
-                  自动获取
+                  {t('propertyPanel.autoDetect')}
                 </button>
               </div>
               <input
@@ -1589,7 +1591,7 @@ export default function PropertyPanel({
                   setSourcePort(e.target.value)
                   onUpdateEdgeData?.(selectedEdge.id, { sourcePort: e.target.value })
                 }}
-                placeholder="如 GE 1"
+                placeholder={t('propertyPanel.localPortPlaceholder')}
               />
               {/* Port selector dropdown — lists all individual ports from the device */}
               {nodes && selectedEdge && (() => {
@@ -1618,26 +1620,26 @@ export default function PropertyPanel({
                       onUpdateEdgeData?.(selectedEdge!.id, { sourcePort: e.target.value })
                     }}
                   >
-                    <option value="">— 选择端口 —</option>
+                    <option value="">{t('propertyPanel.selectPort')}</option>
                     {portList.map((p) => (
                       <option key={p} value={p} disabled={usedSourcePorts.has(p)}>
-                        {p}{usedSourcePorts.has(p) ? ' (已使用)' : ''}
+                        {p}{usedSourcePorts.has(p) ? t('propertyPanel.portUsed') : ''}
                       </option>
                     ))}
                   </select>
                 )
               })()}
             </div>
-            {/* ── 对端端口号 ── */}
+            {/* ── Target port ── */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-text-secondary">对端端口号</label>
+                <label className="text-xs text-text-secondary">{t('propertyPanel.remotePort')}</label>
                 <button
                   className="text-2xs text-select-border hover:opacity-80 transition-colors"
                   onClick={handleAutoTargetPort}
-                  title="根据设备端口信息自动填充"
+                  title={t('propertyPanel.autoFillHint')}
                 >
-                  自动获取
+                  {t('propertyPanel.autoDetect')}
                 </button>
               </div>
               <input
@@ -1648,7 +1650,7 @@ export default function PropertyPanel({
                   setTargetPort(e.target.value)
                   onUpdateEdgeData?.(selectedEdge.id, { targetPort: e.target.value })
                 }}
-                placeholder="如 25GE 1"
+                placeholder={t('propertyPanel.remotePortPlaceholder')}
               />
               {/* Port selector dropdown — lists all individual ports from the device */}
               {nodes && selectedEdge && (() => {
@@ -1677,24 +1679,24 @@ export default function PropertyPanel({
                       onUpdateEdgeData?.(selectedEdge!.id, { targetPort: e.target.value })
                     }}
                   >
-                    <option value="">— 选择端口 —</option>
+                    <option value="">{t('propertyPanel.selectPort')}</option>
                     {portList.map((p) => (
                       <option key={p} value={p} disabled={usedTargetPorts.has(p)}>
-                        {p}{usedTargetPorts.has(p) ? ' (已使用)' : ''}
+                        {p}{usedTargetPorts.has(p) ? t('propertyPanel.portUsed') : ''}
                       </option>
                     ))}
                   </select>
                 )
               })()}
             </div>
-            {/* ── V1.5.1: 接口 IP ── */}
+            {/* ── V1.5.1: Interface IP ── */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                🌐 接口 IP
+                🌐 {t('propertyPanel.interfaceIP')}
               </label>
               <div className="space-y-2">
                 <div>
-                  <label className="block text-2xs text-text-secondary mb-1">本端 IP</label>
+                  <label className="block text-2xs text-text-secondary mb-1">{t('propertyPanel.localIP')}</label>
                   <input
                     type="text"
                     className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -1703,11 +1705,11 @@ export default function PropertyPanel({
                       setSourceIp(e.target.value)
                       onUpdateEdgeData?.(selectedEdge.id, { sourceIp: e.target.value || undefined })
                     }}
-                    placeholder="如 192.168.1.1/24"
+                    placeholder={t('propertyPanel.ipPlaceholder')}
                   />
                 </div>
                 <div>
-                  <label className="block text-2xs text-text-secondary mb-1">对端 IP</label>
+                  <label className="block text-2xs text-text-secondary mb-1">{t('propertyPanel.remoteIP')}</label>
                   <input
                     type="text"
                     className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -1716,15 +1718,15 @@ export default function PropertyPanel({
                       setTargetIp(e.target.value)
                       onUpdateEdgeData?.(selectedEdge.id, { targetIp: e.target.value || undefined })
                     }}
-                    placeholder="如 192.168.1.2/24"
+                    placeholder={t('propertyPanel.ipPlaceholder')}
                   />
                 </div>
               </div>
-              <p className="text-2xs text-text-secondary mt-1.5">填写后将在画布上显示可拖拽的 IP 标签</p>
+              <p className="text-2xs text-text-secondary mt-1.5">{t('propertyPanel.ipHint')}</p>
             </div>
 
             <div>
-              <label className="block text-xs text-text-secondary mb-1">带宽</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.bandwidth')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -1733,11 +1735,11 @@ export default function PropertyPanel({
                   setBandwidth(e.target.value)
                   onUpdateEdgeData?.(selectedEdge.id, { bandwidth: e.target.value })
                 }}
-                placeholder="如 10Gbps"
+                placeholder={t('propertyPanel.bandwidthPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">线缆长度</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('propertyPanel.cableLength')}</label>
               <input
                 type="text"
                 className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
@@ -1746,14 +1748,14 @@ export default function PropertyPanel({
                   setCableLength(e.target.value)
                   onUpdateEdgeData?.(selectedEdge.id, { cableLength: e.target.value })
                 }}
-                placeholder="如 0.3M"
+                placeholder={t('propertyPanel.cableLengthPlaceholder')}
               />
             </div>
 
-            {/* ── 线缆业务说明 ── */}
+            {/* ── Cable description ── */}
             <div className="border-t border-border pt-3">
               <label className="block text-xs font-semibold text-text-primary mb-2">
-                📝 线缆业务说明
+                📝 {t('propertyPanel.cableDescription')}
               </label>
               <textarea
                 className="w-full h-24 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
@@ -1762,10 +1764,10 @@ export default function PropertyPanel({
                 onBlur={() => {
                   onUpdateEdgeData?.(selectedEdge.id, { edgeDescription: edgeDescription || undefined })
                 }}
-                placeholder="此线缆承载的业务流量说明：包括业务名称、流量方向、带宽需求等..."
+                placeholder={t('propertyPanel.cableDescriptionPlaceholder')}
               />
               <p className="text-2xs text-text-secondary mt-1.5">
-                鼠标悬浮于线缆上超过 1.5 秒时将显示此说明内容
+                {t('propertyPanel.cableDescriptionHint')}
               </p>
             </div>
           </div>

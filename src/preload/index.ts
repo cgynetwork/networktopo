@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Open file by path (for recent files menu)
   openFileByPath: (filePath: string) => ipcRenderer.invoke('file:openByPath', filePath),
 
+  // Language switching
+  setLanguage: (lang: string) => ipcRenderer.invoke('lang:changed', lang),
+
   // Menu action listener (supports both string and object payloads)
   onMenuAction: (callback: (action: string | { action: string; filePath?: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, action: string | { action: string; filePath?: string }) => callback(action)

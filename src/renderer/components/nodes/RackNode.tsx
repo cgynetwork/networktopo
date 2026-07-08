@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { type NodeProps } from '@xyflow/react'
 import type { RackNodeData, RackAccessory } from '../../types'
 import { useDragState } from '../../context/DragStateContext'
@@ -9,8 +10,8 @@ import {
 
 // ── Accessory SVG Renderers ────────────────────────────────
 
-/** Render a cable management bar (理线器) at the given Y position */
-function CableManagementSvg({ y, rackWidth, uHeight }: { y: number; rackWidth: number; uHeight: number }) {
+/** Render a cable management bar at the given Y position */
+function CableManagementSvg({ y, rackWidth, uHeight, label }: { y: number; rackWidth: number; uHeight: number; label: string }) {
   const h = uHeight * U_PX_HEIGHT
   const cx = RACK_RAIL_W + 4
   const cw = rackWidth - RACK_RAIL_W * 2 - 8
@@ -26,7 +27,7 @@ function CableManagementSvg({ y, rackWidth, uHeight }: { y: number; rackWidth: n
       ))}
       <text x={cx + cw / 2} y={y + h / 2 + 4} textAnchor="middle"
         fill="var(--color-rack-u-marker)" fontSize={9} fontFamily="system-ui">
-        理线器
+        {label}
       </text>
     </g>
   )
@@ -78,6 +79,7 @@ function PduSvg({ rackHeight, rackWidth }: { rackHeight: number; rackWidth: numb
 const RackNode = function RackNode({ id, data, selected }: NodeProps) {
   const rackData = data as unknown as RackNodeData
   const { uHeight, viewMode, accessories, label } = rackData
+  const { t } = useTranslation()
 
   // ── DEBUG: render cycle tracking ──────────────────────
   const renderCountRef = useRef(0)
@@ -114,6 +116,7 @@ const RackNode = function RackNode({ id, data, selected }: NodeProps) {
             y={accY}
             rackWidth={rackWidth}
             uHeight={acc.uHeight}
+            label={t('sidebar.cableManager')}
           />
         )
       case 'blanking-panel':
@@ -182,7 +185,7 @@ const RackNode = function RackNode({ id, data, selected }: NodeProps) {
         <text x={rackWidth / 2} y={RACK_HEADER_H / 2 + 16} textAnchor="middle"
           fill="var(--color-rack-label)" fontSize={8} fontWeight={500}
           fontFamily="system-ui, sans-serif">
-          {viewMode === 'front' ? '正面' : '背面'}
+          {viewMode === 'front' ? t('sidebar.frontView') : t('sidebar.backView')}
         </text>
         </>
 

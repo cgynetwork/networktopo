@@ -40,23 +40,32 @@ export const RACK_CONTENT_W_DETAIL = RACK_CONTENT_W_BACK
 
 export interface RackSizeDef {
   uHeight: number
-  label: string
+  /** Translation key suffix — one of 'wallMount', 'small', 'medium', 'standard', 'large' */
+  labelKey: string
 }
 
 /** Standard rack sizes available in sidebar */
 export const RACK_SIZES: RackSizeDef[] = [
-  { uHeight: 6, label: '6U 壁挂机柜' },
-  { uHeight: 9, label: '9U 壁挂机柜' },
-  { uHeight: 12, label: '12U 壁挂机柜' },
-  { uHeight: 18, label: '18U 小型机柜' },
-  { uHeight: 22, label: '22U 小型机柜' },
-  { uHeight: 27, label: '27U 中型机柜' },
-  { uHeight: 32, label: '32U 中型机柜' },
-  { uHeight: 36, label: '36U 中型机柜' },
-  { uHeight: 42, label: '42U 标准机柜' },
-  { uHeight: 45, label: '45U 大型机柜' },
-  { uHeight: 47, label: '47U 大型机柜' },
+  { uHeight: 6, labelKey: 'wallMount' },
+  { uHeight: 9, labelKey: 'wallMount' },
+  { uHeight: 12, labelKey: 'wallMount' },
+  { uHeight: 18, labelKey: 'small' },
+  { uHeight: 22, labelKey: 'small' },
+  { uHeight: 27, labelKey: 'medium' },
+  { uHeight: 32, labelKey: 'medium' },
+  { uHeight: 36, labelKey: 'medium' },
+  { uHeight: 42, labelKey: 'standard' },
+  { uHeight: 45, labelKey: 'large' },
+  { uHeight: 47, labelKey: 'large' },
 ]
+
+/**
+ * Build a localized rack size label.
+ * Usage: getRackSizeLabel(size, t) where t is the i18next t function
+ */
+export function getRackSizeLabel(size: RackSizeDef, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return t(`sidebar.rackSizes.${size.labelKey}`, { u: size.uHeight })
+}
 
 // ── Default U-Height by Category ───────────────────────────
 

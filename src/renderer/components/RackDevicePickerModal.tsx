@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CategoryRow, DeviceRow } from '../types'
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -28,6 +29,7 @@ interface RackDevicePickerModalProps {
 }
 
 export default function RackDevicePickerModal({ rackId, onSelect, onClose }: RackDevicePickerModalProps) {
+  const { t } = useTranslation()
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [devices, setDevices] = useState<DeviceRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,7 +71,7 @@ export default function RackDevicePickerModal({ rackId, onSelect, onClose }: Rac
         <div className="bg-surface border border-border rounded-lg shadow-xl w-[480px] max-h-[70vh] flex flex-col pointer-events-auto">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h3 className="text-sm font-semibold text-text-primary">选择设备添加到机柜</h3>
+            <h3 className="text-sm font-semibold text-text-primary">{t('rackDevicePicker.title')}</h3>
             <button
               onClick={onClose}
               className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary text-xs"
@@ -81,7 +83,7 @@ export default function RackDevicePickerModal({ rackId, onSelect, onClose }: Rac
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-3">
             {loading ? (
-              <div className="py-8 text-center text-xs text-text-secondary">加载设备库...</div>
+              <div className="py-8 text-center text-xs text-text-secondary">{t('rackDevicePicker.loading')}</div>
             ) : (
               categories.map((cat) => {
                 const catDevices = devicesByCategory.get(cat.id) || []
@@ -118,7 +120,7 @@ export default function RackDevicePickerModal({ rackId, onSelect, onClose }: Rac
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-border text-2xs text-text-secondary text-center">
-            点击设备即可添加到机柜 · 也可从左侧边栏直接拖拽
+            {t('rackDevicePicker.hint')}
           </div>
         </div>
       </div>

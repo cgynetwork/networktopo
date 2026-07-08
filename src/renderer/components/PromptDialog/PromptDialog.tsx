@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { t } from '../../i18n'
 
 export interface PromptDialogProps {
   open: boolean
@@ -17,8 +18,8 @@ export default function PromptDialog({
   title,
   message,
   defaultValue = '',
-  confirmLabel = '确认',
-  cancelLabel = '取消',
+  confirmLabel = t('common.confirm'),
+  cancelLabel = t('common.cancel'),
   placeholder,
   onConfirm,
   onCancel,

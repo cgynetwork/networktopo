@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import i18next from '../../i18n'
 
 interface InlineEditProps {
   label: string
@@ -71,9 +72,9 @@ export default function InlineEdit({ label, value, placeholder, nodeId, dataKey,
         setEditValue(value)
         setEditing(true)
       }}
-      title={`双击编辑${label}`}
+      title={i18next.t('inlineEdit.doubleClick', { label })}
     >
-      {value || <span className="text-text-secondary italic">{placeholder || '双击设置...'}</span>}
+      {value || <span className="text-text-secondary italic">{placeholder || i18next.t('inlineEdit.doubleClickSet')}</span>}
     </div>
   )
 }

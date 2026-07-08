@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { DeviceRow } from '../types'
 
 export interface SidebarContextMenuState {
@@ -19,6 +20,8 @@ export default function SidebarContextMenu({
   onEdit,
   onDelete,
 }: SidebarContextMenuProps) {
+  const { t } = useTranslation()
+
   return (
     <>
       {/* Backdrop to close */}
@@ -36,7 +39,7 @@ export default function SidebarContextMenu({
           onClick={onEdit}
         >
           <span className="w-4 text-center">✏️</span>
-          <span>修改设备信息</span>
+          <span>{t('sidebar.editDeviceInfo')}</span>
         </button>
         <div className="border-t border-border my-0.5" />
         <button
@@ -44,7 +47,7 @@ export default function SidebarContextMenu({
           onClick={onDelete}
         >
           <span>🗑️</span>
-          <span>删除设备</span>
+          <span>{t('sidebar.deleteDevice')}</span>
         </button>
       </div>
     </>

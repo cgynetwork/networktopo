@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../../i18n'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -18,8 +19,8 @@ export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = '确认',
-  cancelLabel = '取消',
+  confirmLabel = t('common.confirm'),
+  cancelLabel = t('common.cancel'),
   discardLabel,
   onDiscard,
   variant = 'warning',

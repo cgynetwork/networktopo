@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Node, Edge } from '@xyflow/react'
 import type { ThemeName } from '../../context/ThemeContext'
+import type { Language } from '../../context/LanguageContext'
 import type { NodeData, EdgeData } from '../../types'
 
 interface ToolbarProps {
@@ -19,6 +21,8 @@ interface ToolbarProps {
   isDirty?: boolean
   theme?: ThemeName
   onToggleTheme?: () => void
+  language?: Language
+  onToggleLanguage?: () => void
   onUndo?: () => void
   onRedo?: () => void
   canUndo?: boolean
@@ -67,6 +71,8 @@ export default function Toolbar({
   isDirty,
   theme,
   onToggleTheme,
+  language,
+  onToggleLanguage,
   onUndo,
   onRedo,
   canUndo,
@@ -98,19 +104,27 @@ export default function Toolbar({
   onImportTemplate,
   onRefreshTemplateList,
 }: ToolbarProps) {
+  const { t } = useTranslation()
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showTemplateMenu, setShowTemplateMenu] = useState(false)
   const [showStatsTooltip, setShowStatsTooltip] = useState(false)
 
   // ── V0.9.2: Topology asset statistics ─────────────────────────
   const deviceLabels: Record<string, string> = {
-    '防火墙': '防火墙', '交换机': '交换机', '无线控制器': '无线控制器',
-    '无线接入点': '无线接入点', '服务器': '服务器',
-    '终端-PC': 'PC终端', '终端-笔记本': '笔记本终端',
+    '防火墙': t('toolbar.assetStats.firewall'),
+    '交换机': t('toolbar.assetStats.switch'),
+    '无线控制器': t('toolbar.assetStats.wirelessController'),
+    '无线接入点': t('toolbar.assetStats.wirelessAP'),
+    '服务器': t('toolbar.assetStats.server'),
+    '终端-PC': t('toolbar.assetStats.pc'),
+    '终端-笔记本': t('toolbar.assetStats.laptop'),
   }
   const connTypeLabels: Record<string, string> = {
-    'ethernet': '网络线缆', 'fiber': '光纤线缆', 'stack': '堆叠线缆',
-    'wireless': '无线线缆',
+    'ethernet': t('toolbar.assetStats.ethernet'),
+    'fiber': t('toolbar.assetStats.fiber'),
+    'stack': t('toolbar.assetStats.stack'),
+    'wireless': t('toolbar.assetStats.wireless'),
+    'tunnel': t('toolbar.assetStats.tunnel'),
   }
 
   const assetStats = useMemo(() => {
@@ -119,8 +133,8 @@ export default function Toolbar({
     for (const n of nodes) {
       const data = n.data as NodeData | undefined
       if (!data?.device) continue
-      const cat = data.customCategory || data.device.category_name || '未分类'
-      const model = data.customDeviceModel || data.device.model || '未知型号'
+      const cat = data.customCategory || data.device.category_name || t('toolbar.assetStats.uncategorized')
+      const model = data.customDeviceModel || data.device.model || t('toolbar.assetStats.unknownModel')
       let entry = catMap.get(cat)
       if (!entry) { entry = { count: 0, models: new Map() }; catMap.set(cat, entry) }
       entry.count++
@@ -151,7 +165,7 @@ export default function Toolbar({
         count,
       }))
     return { deviceCategories, connectionTypes }
-  }, [nodes, edges])
+  }, [nodes, edges, t])
 
   const showAlignTools = (selectedCount ?? 0) >= 2
   const showDistributeTools = (selectedCount ?? 0) >= 3
@@ -164,8 +178,8 @@ export default function Toolbar({
     for (const c of assetStats.connectionTypes) {
       parts.push(`${c.label} ${c.count}`)
     }
-    return parts.length > 0 ? parts.join('  ') : '暂无设备'
-  }, [assetStats])
+    return parts.length > 0 ? parts.join('  ') : t('toolbar.assetStats.noDevices')
+  }, [assetStats, t])
 
   return (
     <div
@@ -177,7 +191,7 @@ export default function Toolbar({
         <button
           onClick={onToggleSidebar}
           className="w-8 h-8 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary"
-          title={sidebarCollapsed ? '展开设备库' : '收起设备库'}
+          title={sidebarCollapsed ? t('toolbar.expandSidebar') : t('toolbar.collapseSidebar')}
         >
           {sidebarCollapsed ? '☰' : '✕'}
         </button>
@@ -187,7 +201,7 @@ export default function Toolbar({
             onClick={onUndo}
             disabled={!canUndo}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed"
-            title="撤销 (Ctrl+Z)"
+            title={t('toolbar.undo')}
           >
             ↶
           </button>
@@ -195,7 +209,7 @@ export default function Toolbar({
             onClick={onRedo}
             disabled={!canRedo}
             className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed"
-            title="重做 (Ctrl+Y)"
+            title={t('toolbar.redo')}
           >
             ↷
           </button>
@@ -205,18 +219,18 @@ export default function Toolbar({
         {showAlignTools && (
           <div className="flex items-center gap-0.5">
             <div className="w-px h-5 bg-border mx-1" />
-            <button onClick={onAlignLeft} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="左对齐">⇤</button>
-            <button onClick={onAlignHorizontalCenter} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="水平居中">⇔</button>
-            <button onClick={onAlignRight} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="右对齐">⇥</button>
+            <button onClick={onAlignLeft} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.alignLeft')}>⇤</button>
+            <button onClick={onAlignHorizontalCenter} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.alignHorizontalCenter')}>⇔</button>
+            <button onClick={onAlignRight} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.alignRight')}>⇥</button>
             <div className="w-px h-5 bg-border mx-0.5" />
-            <button onClick={onAlignTop} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="顶对齐">⇧</button>
-            <button onClick={onAlignVerticalCenter} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="垂直居中">⇳</button>
-            <button onClick={onAlignBottom} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="底对齐">⇩</button>
+            <button onClick={onAlignTop} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.alignTop')}>⇧</button>
+            <button onClick={onAlignVerticalCenter} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.alignVerticalCenter')}>⇳</button>
+            <button onClick={onAlignBottom} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.alignBottom')}>⇩</button>
             {showDistributeTools && (
               <>
                 <div className="w-px h-5 bg-border mx-0.5" />
-                <button onClick={onDistributeHorizontal} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="水平分布">↔</button>
-                <button onClick={onDistributeVertical} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title="垂直分布">↕</button>
+                <button onClick={onDistributeHorizontal} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.distributeHorizontal')}>↔</button>
+                <button onClick={onDistributeVertical} className="w-7 h-7 flex items-center justify-center rounded hover:bg-hover-bg transition-colors text-text-secondary" title={t('toolbar.distributeVertical')}>↕</button>
               </>
             )}
           </div>
@@ -226,7 +240,7 @@ export default function Toolbar({
           {isDirty && <span className="text-amber-500 mr-0.5">•</span>}
           Topo
         </span>
-        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.5.0</span>
+        <span className="text-2xs text-text-secondary bg-hover-bg px-1.5 py-0.5 rounded">V1.6.0</span>
         {/* V0.9.2: Asset statistics with hover tooltip */}
         <div
           className="relative"
@@ -246,7 +260,7 @@ export default function Toolbar({
               {assetStats.deviceCategories.length > 0 && (
                 <>
                   <div className="text-xs font-semibold text-text-primary mb-1.5">
-                    📦 设备详情
+                    {t('toolbar.assetStats.deviceDetails')}
                   </div>
                   <div className="border-t border-border mb-1.5" />
                   {assetStats.deviceCategories.map(dc => (
@@ -270,7 +284,7 @@ export default function Toolbar({
                     <div className="border-t border-border my-1.5" />
                   )}
                   <div className="text-xs font-semibold text-text-primary mb-1.5">
-                    🔗 连线详情
+                    {t('toolbar.assetStats.connectionDetails')}
                   </div>
                   <div className="border-t border-border mb-1.5" />
                   {assetStats.connectionTypes.map(ct => (
@@ -295,7 +309,7 @@ export default function Toolbar({
               ? 'border-accent text-accent bg-accent-bg'
               : 'border-border text-text-secondary hover:bg-hover-bg'
           }`}
-          title={showGrid ? '隐藏网格' : '显示网格'}
+          title={showGrid ? t('toolbar.hideGrid') : t('toolbar.showGrid')}
         >
           ⊞
         </button>
@@ -307,7 +321,7 @@ export default function Toolbar({
               ? 'border-accent text-accent bg-accent-bg'
               : 'border-border text-text-secondary hover:bg-hover-bg'
           }`}
-          title={snapEnabled ? '关闭吸附' : '开启吸附'}
+          title={snapEnabled ? t('toolbar.disableSnap') : t('toolbar.enableSnap')}
         >
           ⊡
         </button>
@@ -319,7 +333,7 @@ export default function Toolbar({
               ? 'border-accent text-accent bg-accent-bg'
               : 'border-border text-text-secondary hover:bg-hover-bg'
           }`}
-          title={isDemoMode ? '退出演示模式' : '演示模式'}
+          title={isDemoMode ? t('toolbar.exitDemoMode') : t('toolbar.demoMode')}
         >
           🎬
         </button>
@@ -327,7 +341,7 @@ export default function Toolbar({
         <button
           onClick={onOpenSearch}
           className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary"
-          title="搜索设备 (Ctrl+F)"
+          title={t('toolbar.searchDevices')}
         >
           🔍
         </button>
@@ -336,61 +350,71 @@ export default function Toolbar({
         <button
           onClick={onZoomOut}
           className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-sm"
-          title="缩小 (Ctrl+-)"
+          title={t('toolbar.zoomOut')}
         >
           −
         </button>
         <span
           className="text-xs text-text-secondary min-w-[42px] text-center cursor-default"
-          title="当前缩放比例"
+          title={t('toolbar.currentZoom')}
         >
           {viewportZoom != null ? `${Math.round(viewportZoom * 100)}%` : '100%'}
         </span>
         <button
           onClick={onZoomIn}
           className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-sm"
-          title="放大 (Ctrl+=)"
+          title={t('toolbar.zoomIn')}
         >
           +
         </button>
         <button
           onClick={onFitView}
           className="w-7 h-7 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-xs"
-          title="适应视窗 (Ctrl+0)"
+          title={t('toolbar.fitView')}
         >
           ⊡
         </button>
         <div className="w-px h-5 bg-border mx-0.5" />
 
+        {/* Theme toggle */}
         <button
           onClick={onToggleTheme}
           className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary"
-          title={theme === 'gilded' ? '切换到简洁主题' : '切换到鎏金主题'}
+          title={theme === 'gilded' ? t('toolbar.switchToDefaultTheme') : t('toolbar.switchToGildedTheme')}
         >
           {theme === 'gilded' ? '☀️' : '✨'}
+        </button>
+
+        {/* Language toggle */}
+        <button
+          onClick={onToggleLanguage}
+          className="w-8 h-8 flex items-center justify-center rounded border border-border hover:bg-hover-bg transition-colors text-text-secondary text-xs font-semibold"
+          title={t('toolbar.switchLanguage')}
+        >
+          {language === 'zh' ? 'EN' : '中'}
         </button>
 
         <button
           onClick={onNew}
           className="px-3 py-1.5 text-xs font-medium rounded bg-surface border border-border hover:bg-hover-bg transition-colors text-text-primary"
-          title="新建拓扑 (清空画布)"
+          title={t('toolbar.newTooltip')}
         >
-          新建
+          {t('toolbar.new')}
         </button>
         <button
           onClick={onSave}
           className="px-3 py-1.5 text-xs font-medium rounded bg-surface border border-border hover:bg-hover-bg transition-colors text-text-primary"
-          title="保存拓扑文件 (.topo.json)"
+          title={t('toolbar.saveTooltip')}
           disabled={nodes.length === 0}
         >
-          保存
+          {t('toolbar.save')}
         </button>
         <button
           onClick={onOpen}
           className="px-3 py-1.5 text-xs font-medium rounded bg-surface border border-border hover:bg-hover-bg transition-colors text-text-primary"
-          title="打开拓扑文件"
+          title={t('toolbar.openTooltip')}
         >
-          打开
+          {t('toolbar.open')}
         </button>
 
         {/* Template dropdown */}
@@ -399,9 +423,9 @@ export default function Toolbar({
             onClick={() => { setShowTemplateMenu(!showTemplateMenu); onRefreshTemplateList?.() }}
             onBlur={() => setTimeout(() => setShowTemplateMenu(false), 200)}
             className="px-3 py-1.5 text-xs font-medium rounded bg-surface border border-border hover:bg-hover-bg transition-colors text-text-primary"
-            title="拓扑模板"
+            title={t('toolbar.templateTooltip')}
           >
-            模板 ▾
+            {t('toolbar.template')}
           </button>
           {showTemplateMenu && (
             <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-lg z-50 py-1 min-w-[180px]">
@@ -410,31 +434,31 @@ export default function Toolbar({
                 className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary"
                 disabled={nodes.length === 0}
               >
-                💾 保存为模板...
+                💾 {t('toolbar.saveAsTemplate')}
               </button>
               <button
                 onMouseDown={() => { onImportTemplate?.(); setShowTemplateMenu(false) }}
                 className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary"
               >
-                📥 导入模板...
+                📥 {t('toolbar.importTemplate')}
               </button>
               {templateList && templateList.length > 0 && (
                 <>
                   <div className="border-t border-border my-0.5" />
-                  <div className="px-3 py-1 text-2xs text-text-secondary font-medium">加载模板</div>
-                  {templateList.map(t => (
-                    <div key={t.name} className="flex items-center group">
+                  <div className="px-3 py-1 text-2xs text-text-secondary font-medium">{t('toolbar.loadTemplate')}</div>
+                  {templateList.map(tmpl => (
+                    <div key={tmpl.name} className="flex items-center group">
                       <button
-                        onMouseDown={() => { onLoadTemplate?.(t.name); setShowTemplateMenu(false) }}
+                        onMouseDown={() => { onLoadTemplate?.(tmpl.name); setShowTemplateMenu(false) }}
                         className="flex-1 text-left px-3 py-1 text-xs hover:bg-hover-bg transition-colors text-text-primary truncate"
-                        title={t.name}
+                        title={tmpl.name}
                       >
-                        📐 {t.name}
+                        📐 {tmpl.name}
                       </button>
                       <button
-                        onMouseDown={() => { onDeleteTemplate?.(t.name); setShowTemplateMenu(false) }}
+                        onMouseDown={() => { onDeleteTemplate?.(tmpl.name); setShowTemplateMenu(false) }}
                         className="px-2 py-1 text-2xs text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100"
-                        title="删除模板"
+                        title={t('toolbar.deleteTemplate')}
                       >
                         ✕
                       </button>
@@ -452,10 +476,10 @@ export default function Toolbar({
             onClick={() => setShowExportMenu(!showExportMenu)}
             onBlur={() => setTimeout(() => setShowExportMenu(false), 150)}
             className="px-3 py-1.5 text-xs font-medium rounded bg-select-border text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-            title="导出拓扑图"
+            title={t('toolbar.exportTooltip')}
             disabled={nodes.length === 0}
           >
-            导出 ▾
+            {t('toolbar.export')}
           </button>
           {showExportMenu && (
             <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-lg z-50 py-1 min-w-[120px]">
@@ -463,13 +487,13 @@ export default function Toolbar({
                 onMouseDown={() => { onExportPNG?.(); setShowExportMenu(false) }}
                 className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary"
               >
-                🖼️ 导出 PNG
+                🖼️ {t('toolbar.exportPNG')}
               </button>
               <button
                 onMouseDown={() => { onExportPDF?.(); setShowExportMenu(false) }}
                 className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary"
               >
-                📄 导出 PDF
+                📄 {t('toolbar.exportPDF')}
               </button>
               <div className="border-t border-border my-0.5" />
               <button
@@ -477,7 +501,7 @@ export default function Toolbar({
                 disabled={isExportingGIF}
                 className="w-full text-left px-3 py-1.5 text-xs hover:bg-hover-bg transition-colors text-text-primary disabled:opacity-40 disabled:cursor-wait"
               >
-                {isExportingGIF ? '🎞️ 正在导出 GIF...' : '🎞️ 导出动画 GIF'}
+                {isExportingGIF ? `🎞️ ${t('toolbar.exportingGIF')}` : `🎞️ ${t('toolbar.exportGIF')}`}
               </button>
             </div>
           )}

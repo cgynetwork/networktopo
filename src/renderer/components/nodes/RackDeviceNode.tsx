@@ -1,4 +1,6 @@
 import { useRef, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { t } from '../../i18n'
 import { type NodeProps } from '@xyflow/react'
 import type { RackDeviceNodeData } from '../../types'
 import { U_PX_HEIGHT, RACK_HEADER_H, RACK_RAIL_W, RACK_FRONT_W, RACK_BACK_W } from '../../utils/rackUtils'
@@ -43,7 +45,7 @@ function PowerSupplyBlocks({ count, maxWidth, height }: { count: number; maxWidt
     return (
       <text x={maxWidth / 2} y={height / 2 + 4} textAnchor="middle"
         fill="var(--color-text-secondary)" fontSize={11} fontFamily="system-ui">
-        无电源模块
+        {t('propertyPanel.noPSU')}
       </text>
     )
   }
@@ -110,6 +112,7 @@ function PowerSupplyBlocks({ count, maxWidth, height }: { count: number; maxWidt
 const RackDeviceNode = function RackDeviceNode({ id, data, selected, parentId }: NodeProps) {
   const nodeData = data as unknown as RackDeviceNodeData
   const { device, uHeight, customName, customColor, powerSupplyCount } = nodeData
+  const { t } = useTranslation()
 
   // ── DEBUG: render cycle tracking ──────────────────────
   const renderCountRef = useRef(0)
@@ -371,7 +374,7 @@ const RackDeviceNode = function RackDeviceNode({ id, data, selected, parentId }:
 
             {/* Section label */}
             <text x={8} y={12} fill="var(--color-text-secondary)" fontSize={7} fontFamily="system-ui">
-              电源模块
+              {t('propertyPanel.psuModule')}
             </text>
           </svg>
         ) : (
@@ -384,7 +387,7 @@ const RackDeviceNode = function RackDeviceNode({ id, data, selected, parentId }:
             color: 'var(--color-text-secondary)',
           }}>
             <span>🔌</span>
-            <span>电源 ×{psuCount}</span>
+            <span>{t('propertyPanel.psuCountLabel', { n: psuCount })}</span>
           </div>
         )}
       </div>
@@ -403,7 +406,7 @@ const RackDeviceNode = function RackDeviceNode({ id, data, selected, parentId }:
         }}>
           <span>{vendorName} {device.model}</span>
           <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            🔌 电源 ×{psuCount}
+            🔌 {t('propertyPanel.psuCountLabel', { n: psuCount })}
           </span>
         </div>
       )}

@@ -37,6 +37,9 @@ export interface ElectronAPI {
   // Open file by path (for recent files menu)
   openFileByPath: (filePath: string) => Promise<{ success: boolean; filePath?: string; content?: string; error?: string }>
 
+  // Language switching
+  setLanguage: (lang: string) => Promise<void>
+
   // Menu action listener (supports both string and object payloads)
   onMenuAction: (callback: (action: string | { action: string; filePath?: string }) => void) => () => void
 

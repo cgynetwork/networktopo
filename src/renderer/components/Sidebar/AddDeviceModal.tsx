@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CategoryRow, VendorRow, DeviceRow } from '../../types'
 import { composePortsInfo, parseModularPorts } from '../../utils/portParser'
 
@@ -9,6 +10,7 @@ interface AddDeviceModalProps {
 }
 
 export default function AddDeviceModal({ device, onClose, onCreated }: AddDeviceModalProps) {
+  const { t } = useTranslation()
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [vendors, setVendors] = useState<VendorRow[]>([])
   const [categoryId, setCategoryId] = useState<number>(0)
@@ -72,10 +74,10 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
         setNewVendorName('')
         setShowNewVendor(false)
       } else {
-        setError(result.error || '添加厂商失败')
+        setError(result.error || t('addDeviceModal.vendorAddFailed'))
       }
     } catch {
-      setError('添加厂商失败')
+      setError(t('addDeviceModal.vendorAddFailed'))
     }
   }, [newVendorName])
 
@@ -106,11 +108,11 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
 
   const handleSubmit = useCallback(async () => {
     if (!categoryId || (!vendorId && !showNewVendor)) {
-      setError('请选择分类和厂商')
+      setError(t('addDeviceModal.categoryRequired'))
       return
     }
     if (!model.trim()) {
-      setError('请输入型号')
+      setError(t('addDeviceModal.modelRequired'))
       return
     }
     setError('')
@@ -123,7 +125,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
         if (vr.success && vr.id) {
           finalVendorId = vr.id
         } else {
-          setError(vr.error || '添加厂商失败')
+          setError(vr.error || t('addDeviceModal.vendorAddFailed'))
           setSubmitting(false)
           return
         }
@@ -160,7 +162,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
       }
       onCreated()
     } catch {
-      setError(device ? '更新设备失败' : '创建设备失败')
+      setError(device ? t('addDeviceModal.updateFailed') : t('addDeviceModal.createFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -172,7 +174,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <h2 className="text-sm font-semibold text-text-primary">
-            {device ? '修改设备信息' : '自定义设备'}
+            {device ? t('addDeviceModal.editTitle') : t('addDeviceModal.addTitle')}
           </h2>
           <button
             onClick={onClose}
@@ -186,13 +188,13 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
         <div className="p-5 space-y-4">
           {/* Category */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">设备分类 <span className="text-danger">*</span></label>
+            <label className="block text-xs text-text-secondary mb-1">{t('addDeviceModal.categoryLabel')} <span className="text-danger">*</span></label>
             <select
               className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
               value={categoryId || ''}
               onChange={(e) => setCategoryId(Number(e.target.value))}
             >
-              <option value="" disabled>请选择分类</option>
+              <option value="" disabled>{t('addDeviceModal.categoryPlaceholder')}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -201,7 +203,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
 
           {/* Vendor */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">厂商 <span className="text-danger">*</span></label>
+            <label className="block text-xs text-text-secondary mb-1">{t('addDeviceModal.vendorLabel')} <span className="text-danger">*</span></label>
             {!showNewVendor ? (
               <div className="flex gap-2">
                 <select
@@ -209,7 +211,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                   value={vendorId || ''}
                   onChange={(e) => setVendorId(Number(e.target.value))}
                 >
-                  <option value="" disabled>请选择厂商</option>
+                  <option value="" disabled>{t('addDeviceModal.vendorPlaceholder')}</option>
                   {vendors.map((v) => (
                     <option key={v.id} value={v.id}>{v.name}</option>
                   ))}
@@ -219,7 +221,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                   className="px-2 h-8 text-xs text-select-border border border-select-border rounded hover:bg-select-bg transition-colors whitespace-nowrap"
                   onClick={() => setShowNewVendor(true)}
                 >
-                  + 新厂商
+                  {t('addDeviceModal.newVendor')}
                 </button>
               </div>
             ) : (
@@ -230,7 +232,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                   value={newVendorName}
                   onChange={(e) => setNewVendorName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleAddVendor() }}
-                  placeholder="输入新厂商名称..."
+                  placeholder={t('addDeviceModal.newVendorPlaceholder')}
                   autoFocus
                 />
                 <button
@@ -238,14 +240,14 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                   className="px-2 h-8 text-xs bg-select-border text-white rounded hover:opacity-90 transition-opacity whitespace-nowrap"
                   onClick={handleAddVendor}
                 >
-                  确认
+                  {t('common.confirm')}
                 </button>
                 <button
                   type="button"
                   className="px-2 h-8 text-xs border border-border rounded hover:bg-hover-bg transition-colors whitespace-nowrap"
                   onClick={() => { setShowNewVendor(false); setNewVendorName('') }}
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
             )}
@@ -253,33 +255,33 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
 
           {/* Model */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">型号 <span className="text-danger">*</span></label>
+            <label className="block text-xs text-text-secondary mb-1">{t('addDeviceModal.modelLabel')} <span className="text-danger">*</span></label>
             <input
               type="text"
               className="w-full h-8 px-2 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="如 S5130S-28S-HPWR-EI"
+              placeholder={t('addDeviceModal.modelPlaceholder')}
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">描述</label>
+            <label className="block text-xs text-text-secondary mb-1">{t('addDeviceModal.descriptionLabel')}</label>
             <textarea
               className="w-full h-16 px-2 py-1 text-xs rounded border border-border bg-surface text-text-primary focus:outline-none focus:border-select-border resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="设备描述..."
+              placeholder={t('addDeviceModal.descriptionPlaceholder')}
             />
           </div>
 
           {/* Ports info — V0.7.1 modular editing */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">端口信息</label>
+            <label className="block text-xs text-text-secondary mb-1">{t('addDeviceModal.portsSection')}</label>
             <div className="space-y-2">
               <div>
-                <label className="block text-2xs text-text-secondary mb-1">网络端口数量</label>
+                <label className="block text-2xs text-text-secondary mb-1">{t('addDeviceModal.networkPorts')}</label>
                 <input
                   type="number"
                   min="0"
@@ -290,7 +292,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                 />
               </div>
               <div>
-                <label className="block text-2xs text-text-secondary mb-1">千兆光纤端口数量</label>
+                <label className="block text-2xs text-text-secondary mb-1">{t('addDeviceModal.gigabitFiberPorts')}</label>
                 <input
                   type="number"
                   min="0"
@@ -301,7 +303,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                 />
               </div>
               <div>
-                <label className="block text-2xs text-text-secondary mb-1">万兆光纤端口数量</label>
+                <label className="block text-2xs text-text-secondary mb-1">{t('addDeviceModal.tenGigabitFiberPorts')}</label>
                 <input
                   type="number"
                   min="0"
@@ -313,13 +315,13 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
               </div>
             </div>
             <p className="text-2xs text-text-secondary mt-1.5">
-              端口描述：{composePortsInfo(portsRJ45, portsSFP, portsSFP28) || '（未设置）'}
+              {t('addDeviceModal.portDescription', { text: composePortsInfo(portsRJ45, portsSFP, portsSFP28) || t('addDeviceModal.portDescriptionEmpty') })}
             </p>
           </div>
 
           {/* Device image (设备真机) */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">设备真机（可选）</label>
+            <label className="block text-xs text-text-secondary mb-1">{t('addDeviceModal.deviceImage')}</label>
 
             {/* Image preview */}
             <div
@@ -332,7 +334,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
               {imagePreviewUrl ? (
                 <img
                   src={imagePreviewUrl}
-                  alt="设备真机预览"
+                  alt={t('addDeviceModal.deviceImage')}
                   className="w-full h-full object-contain"
                 />
               ) : (
@@ -342,7 +344,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <path d="M21 15l-5-5L5 21" />
                   </svg>
-                  <span className="text-2xs">点击上传设备实拍图</span>
+                  <span className="text-2xs">{t('addDeviceModal.clickToUpload')}</span>
                 </div>
               )}
             </div>
@@ -353,7 +355,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                 className="h-8 px-3 text-xs border border-select-border text-select-border rounded hover:bg-select-bg transition-colors"
                 onClick={handlePickImage}
               >
-                {imagePath ? '更换图片' : '选择图片'}
+                {imagePath ? t('addDeviceModal.replaceImage') : t('addDeviceModal.selectImage')}
               </button>
               {imagePath && (
                 <button
@@ -361,7 +363,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
                   className="text-xs text-danger hover:opacity-70"
                   onClick={() => setImagePath('')}
                 >
-                  移除
+                  {t('addDeviceModal.removeImage')}
                 </button>
               )}
             </div>
@@ -381,7 +383,7 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
             onClick={onClose}
             className="px-4 h-8 text-xs border border-border rounded hover:bg-hover-bg transition-colors text-text-primary"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -389,8 +391,8 @@ export default function AddDeviceModal({ device, onClose, onCreated }: AddDevice
             className="px-4 h-8 text-xs bg-select-border text-white rounded hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting
-              ? (device ? '更新中...' : '创建中...')
-              : (device ? '更新设备' : '创建设备')}
+              ? (device ? t('addDeviceModal.updating') : t('addDeviceModal.creating'))
+              : (device ? t('addDeviceModal.updateDevice') : t('addDeviceModal.createDevice'))}
           </button>
         </div>
       </div>

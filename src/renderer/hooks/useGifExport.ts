@@ -3,6 +3,7 @@ import type { ReactFlowInstance } from '@xyflow/react'
 import GIF from 'gif.js'
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url'
 import type { ToastContextValue } from '../context/ToastContext'
+import { t } from '../i18n'
 
 interface UseGifExportOptions {
   /** Ref to the ReactFlow container div */
@@ -53,7 +54,7 @@ export function useGifExport({
       // Compute rect at current zoom level — no zoomFactor manipulation
       const rect = el.getBoundingClientRect()
       if (rect.width < 50 || rect.height < 50) {
-        toast.showToast('画布区域太小，无法导出 GIF', 'warning')
+        toast.showToast(t('toast.gifCanvasTooSmall'), 'warning')
         return
       }
 
@@ -107,7 +108,7 @@ export function useGifExport({
       }
 
       if (frames.length === 0) {
-        toast.showToast('未能捕获任何帧，GIF 导出失败', 'error')
+        toast.showToast(t('toast.gifNoFrames'), 'error')
         return
       }
 
@@ -139,11 +140,11 @@ export function useGifExport({
       })
 
       const exportResult = await window.electronAPI.exportGIF(gifDataUrl)
-      if (exportResult.success) toast.showToast('GIF 导出成功', 'success')
-      else if (!exportResult.canceled) toast.showToast('GIF 导出失败', 'error')
+      if (exportResult.success) toast.showToast(t('toast.gifExportSuccess'), 'success')
+      else if (!exportResult.canceled) toast.showToast(t('toast.gifExportFailed'), 'error')
     } catch (err) {
       console.error('Export GIF error:', err)
-      toast.showToast('GIF 导出失败，请重试', 'error')
+      toast.showToast(t('toast.gifRetryFailed'), 'error')
     } finally {
       el.classList.remove('react-flow--capturing')
       if (rfInstance && savedViewport) {

@@ -1,4 +1,5 @@
 import { memo, useLayoutEffect, useRef, useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { NodeResizer, Position, useReactFlow, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import type { DeviceRow, EdgeData, AppImageItem } from '../../types'
 import { parsePortsInfo, getPortLayout, composePortsInfo, countLayoutRows } from '../../utils/portParser'
@@ -88,6 +89,7 @@ function getNodeWidth(totalPorts: number): number {
 function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: NodeProps) {
   const nodeData = data as unknown as DeviceNodeData
   const { device } = nodeData
+  const { t } = useTranslation()
   const [isHovered, setIsHovered] = useState(false)
   // V0.9.3: Business description tooltip (3-second hover)
   const [showBusinessTooltip, setShowBusinessTooltip] = useState(false)
@@ -413,7 +415,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: nodeData.customColor || colors.accent }} />
         <div className="flex-1 min-w-0">
           <InlineEdit
-            label="设备功能"
+            label={t('deviceNode.deviceFunction')}
             value={displayCategory}
             nodeId={id}
             dataKey="customCategory"
@@ -421,7 +423,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         </div>
         <div className="min-w-0">
           <InlineEdit
-            label="设备厂商"
+            label={t('deviceNode.deviceVendor')}
             value={displayVendor}
             nodeId={id}
             dataKey="customVendor"
@@ -562,14 +564,14 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
       {!isDemoMode && (
       <div className="px-3 pb-2.5 space-y-0.5">
         <InlineEdit
-          label="设备名称"
+          label={t('deviceNode.deviceName')}
           value={displayDeviceName}
           nodeId={id}
           dataKey="customName"
           bold
         />
         <InlineEdit
-          label="设备型号"
+          label={t('deviceNode.deviceModel')}
           value={displayDeviceModel}
           nodeId={id}
           dataKey="customDeviceModel"
@@ -577,9 +579,9 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
         {/* 设备端口 — read-only display, edit via PropertyPanel */}
         <div
           className="text-2xs truncate rounded px-1 py-0.5 -mx-1 min-w-0 text-text-secondary"
-          title="在属性面板中编辑端口数量"
+          title={t('deviceNode.editPortsTitle')}
         >
-          {displayPorts || <span className="text-text-secondary italic">无端口信息</span>}
+          {displayPorts || <span className="text-text-secondary italic">{t('deviceNode.noPortInfo')}</span>}
         </div>
         {/* V0.11.0: Group badge — shows when node belongs to a named group */}
         {nodeData.groupName && (
@@ -589,7 +591,7 @@ function DeviceNode({ id, data, selected, width: rfWidth, height: rfHeight }: No
               backgroundColor: `hsl(${hashStr(nodeData.groupName) % 360}, 45%, 88%)`,
               color: `hsl(${hashStr(nodeData.groupName) % 360}, 55%, 28%)`,
             }}
-            title={`分组：${nodeData.groupName}`}
+            title={t('deviceNode.groupLabel', { name: nodeData.groupName })}
           >
             📁 {nodeData.groupName}
           </div>
